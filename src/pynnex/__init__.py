@@ -1,5 +1,5 @@
 """
-Pynnex - Python Signal/Slot Implementation
+Pynnex - A lightweight, pure-Python signal/slot library.
 """
 
 from .core import (
@@ -8,35 +8,26 @@ from .core import (
     nx_slot,
     nx_graceful_shutdown,
     NxConnectionType,
-    NxSignalConstants 
+    NxSignalConstants
 )
 from .utils import nx_log_and_raise_error
 from .contrib.patterns.worker.decorators import nx_with_worker
 from .contrib.extensions.property import nx_property
 
-# Alias for core functions
-from pynnex.core import (
-    nx_with_signals as with_signals,
-    nx_signal as signal,
-    nx_slot as slot
-)
-from .contrib.patterns.worker.decorators import nx_with_worker as with_worker
-
-
-__version__ = "0.5.0"
+# Convenience aliases (without nx_ prefix)
+with_signals = nx_with_signals
+signal = nx_signal
+slot = nx_slot
+with_worker = nx_with_worker
 
 __all__ = [
-    "nx_with_signals",
-    "nx_signal",
-    "nx_slot",
-    "nx_with_worker",
-    "nx_property",
-    "nx_log_and_raise_error",
-    "nx_graceful_shutdown",
-    "NxConnectionType",
-    "NxSignalConstants",    
-    "with_signals",
-    "signal",
-    "slot",
-    "with_worker",
+    'nx_with_signals', 'with_signals',
+    'nx_signal', 'signal',
+    'nx_slot', 'slot',
+    'nx_with_worker', 'with_worker',
+    'nx_property',
+    'nx_log_and_raise_error',
+    'nx_graceful_shutdown',
+    'NxConnectionType',
+    'NxSignalConstants'
 ]
