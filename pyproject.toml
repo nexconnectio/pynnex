@@ -1,0 +1,97 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pynnex"
+version = "1.0.0"
+description = "A Python Signal-Slot library"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "San Kim", email = "nexconnect.io@gmail.com"}
+]
+keywords = ["signal-slot", "decorator", "multithreading", "asyncio"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries"
+]
+
+[project.urls]
+Homepage = "https://github.com/nexconnectio/pynnex"
+Repository = "https://github.com/nexconnectio/pynnex"
+Documentation = "https://github.com/nexconnectio/pynnex#readme"
+Issues = "https://github.com/nexconnectio/pynnex/issues"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "pytest-asyncio>=0.21.0",
+    "memory_profiler"
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "--strict-markers --disable-warnings"
+testpaths = ["tests"]
+markers = [
+    "asyncio: mark test as an async test",
+    "performance: mark test as a performance test",
+]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.coverage.run]
+source = ["pynnex"]
+branch = true
+
+[tool.pylint]
+disable = [
+    "protected-access",
+    "too-few-public-methods",
+    "too-many-statements",
+    "broad-exception-caught"
+]
+max-line-length = 140
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "pass",
+    "raise ImportError",
+]
+
+[tool.mypy]
+# Disable checking for untyped function bodies
+check_untyped_defs = false
+
+# Allow implicit Optional
+no_implicit_optional = false
+
+# Disable specific errors
+disable_error_code = ["annotation-unchecked", "assignment"]
+
+# Do not treat warnings as errors
+warn_return_any = false
+warn_unused_configs = false
+
+ignore_errors = true
+omit = [
+    "tests/*",
+    "setup.py",
+]
