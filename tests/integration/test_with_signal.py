@@ -42,20 +42,24 @@ async def test_multiple_slots(sender):
 @pytest.mark.asyncio
 async def test_alias_decorators():
     """Test alias decorators (signal, slot, with_signals)"""
-    
+
     @with_signals
     class AliasTestSender:
+        """Test sender class with alias decorators"""
+
         @signal
         def value_changed(self):
             """Signal that is emitted when the value changes."""
-            pass
 
         def emit_value(self, value):
             """Emit the value_changed signal."""
+
             self.value_changed.emit(value)
 
     @with_signals
     class AliasTestReceiver:
+        """Test receiver class with alias decorators"""
+
         def __init__(self):
             self.received_value = None
             self.received_count = 0
@@ -63,6 +67,7 @@ async def test_alias_decorators():
         @slot
         def on_value_changed(self, value):
             """Slot that handles value changes."""
+
             self.received_value = value
             self.received_count += 1
 
@@ -71,7 +76,7 @@ async def test_alias_decorators():
 
     sender.value_changed.connect(receiver, receiver.on_value_changed)
     sender.emit_value(42)
-    
+
     await asyncio.sleep(0.1)
     assert receiver.received_value == 42
     assert receiver.received_count == 1

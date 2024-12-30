@@ -12,8 +12,7 @@ import asyncio
 import logging
 import pytest
 from pynnex.contrib.patterns.worker.decorators import nx_with_worker
-from pynnex.core import NxSignalConstants
-from pynnex import with_worker
+from pynnex import NxSignalConstants, with_worker
 
 logger = logging.getLogger(__name__)
 
@@ -21,8 +20,10 @@ logger = logging.getLogger(__name__)
 @pytest.fixture
 async def worker():
     """Create a worker"""
+
     w = TestWorker()
     yield w
+
     if getattr(w, NxSignalConstants.THREAD, None) and w._nx_thread.is_alive():
         w.stop()
 
@@ -37,16 +38,20 @@ class TestWorker:
 
     async def run(self, *args, **kwargs):
         """Run the worker"""
+
         self.run_called = True
         initial_value = args[0] if args else kwargs.get("initial_value", None)
+
         if initial_value:
             self.data.append(initial_value)
+
         await self.start_queue()
 
 
 @pytest.mark.asyncio
 async def test_worker_lifecycle(worker):
     """Test the worker lifecycle"""
+
     logger.info("Starting test_worker_lifecycle")
     initial_value = "test"
 
@@ -87,6 +92,7 @@ class AliasTestWorker:
 
     async def run(self, *args, **kwargs):
         """Run the worker"""
+
         self.run_called = True
         initial_value = args[0] if args else kwargs.get("initial_value", None)
         if initial_value:
@@ -96,9 +102,10 @@ class AliasTestWorker:
 @pytest.mark.asyncio
 async def test_worker_alias_lifecycle():
     """Test the worker lifecycle using alias decorator"""
+
     logger.info("Starting test_worker_alias_lifecycle")
     initial_value = "test_alias"
-    
+
     worker = AliasTestWorker()
 
     logger.info("Checking initial state")
