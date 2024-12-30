@@ -14,7 +14,7 @@ Pynnex is a lightweight, pure-Python signal/slot library that provides thread-sa
 - **Thread-Safe**: Signal emissions and slot executions are automatically managed for thread safety.
 - **Flexible Connection Types**: Direct or queued connections, automatically chosen based on the caller and callee threads.
 - **Worker Thread Pattern**: Simplify background task execution with a built-in worker pattern that provides an event loop and task queue in a dedicated thread.
-- **Familiar Decorators**: Simple decorators let you define signals and slots declaratively. Core decorators (`@nx_with_signals`, `@nx_signal`, `@nx_slot`, `@nx_with_worker`) are also available without the `nx_` prefix for convenience.
+- **Familiar Decorators**: Simple decorators let you define signals and slots declaratively. Core decorators (`@nx_with_signals`, `@nx_signal`, `@nx_slot`, `@nx_with_worker`) are also available without the `nx_` prefix for convenience (i.e., you can use `@with_signals`, `@signal`, `@slot`, `@with_worker`). This makes the code more concise and familiar to users of similar frameworks.
 - **Thread-Safe Properties**: The `@nx_property` decorator provides thread-safe property access with automatic signal emission on changes.
 - **Weak Reference**: 
   - By setting `weak=True` when connecting a slot, the library holds a weak reference to the receiver object. This allows the receiver to be garbage-collected if there are no other strong references to it. Once garbage-collected, the connection is automatically removed, preventing stale references.
@@ -175,9 +175,9 @@ For background work, Pynnex provides a `@nx_with_worker` decorator that:
 ```python
 from pynnex import nx_with_worker, nx_signal
 
-@nx_with_worker
+@with_worker
 class DataProcessor:
-    @nx_signal
+    @signal
     def processing_done(self):
         """Emitted when processing completes"""
 
