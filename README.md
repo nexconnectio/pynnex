@@ -1,11 +1,11 @@
-# Pynnex
+# PynneX
 
 ```bash
 # New package installation:
 pip install pynnex
 ```
 
-Pynnex is a lightweight, pure-Python signal/slot library that provides thread-safe, asyncio-compatible event handling. It enables clean decoupling of components, seamless thread-to-thread communication, and flexible asynchronous/synchronous slot handling.
+`PynneX` is a Python library that offers a modern signal-slot mechanism with seamless thread safety, asynchronous handling, and automatic connection-type detection. It empowers you to build clean, event-driven architectures without tightly coupling components, all while ensuring thread synchronization and clear separation of concerns. Whether you're working with multiple threads or asyncio-based coroutines, pynnex keeps communication straightforward and maintainable, allowing you to focus on the logic that truly matters.
 
 ## Key Features
 
@@ -21,7 +21,7 @@ Pynnex is a lightweight, pure-Python signal/slot library that provides thread-sa
 
 ### **Requires an Existing Event Loop**
 
-Since Pynnex relies on Python’s `asyncio` infrastructure for scheduling async slots and cross-thread calls, you **must** have a running event loop before using Pynnex’s decorators like `@nx_with_signals` or `@nx_slot`. Typically, this means:
+Since PynneX relies on Python’s `asyncio` infrastructure for scheduling async slots and cross-thread calls, you **must** have a running event loop before using PynneX’s decorators like `@nx_with_signals` or `@nx_slot`. Typically, this means:
 
 1. **Inside `asyncio.run(...)`:**  
    For example:
@@ -35,11 +35,11 @@ Since Pynnex relies on Python’s `asyncio` infrastructure for scheduling async 
 2. **@nx_with_worker Decorator:**
    If you decorate a class with `@nx_with_worker`, it automatically creates a worker thread with its own event loop. That pattern is isolated to the worker context, so any other async usage in the main thread also needs its own loop.
 
-If no event loop is running when a slot is called, Pynnex will raise a RuntimeError instead of creating a new loop behind the scenes. This ensures consistent concurrency behavior and avoids hidden loops that might never process tasks.
+If no event loop is running when a slot is called, PynneX will raise a RuntimeError instead of creating a new loop behind the scenes. This ensures consistent concurrency behavior and avoids hidden loops that might never process tasks.
 
-## Why Pynnex?
+## Why PynneX?
 
-Modern Python applications often rely on asynchronous operations and multi-threading. Traditional event frameworks either require large external dependencies or lack seamless async/thread support. Pynnex provides:
+Modern Python applications often rely on asynchronous operations and multi-threading. Traditional event frameworks either require large external dependencies or lack seamless async/thread support. PynneX provides:
 
 - A minimal, dependency-free solution for event-driven architectures.
 - Smooth integration with asyncio for modern async Python code.
@@ -48,7 +48,7 @@ Modern Python applications often rely on asynchronous operations and multi-threa
 
 ## Installation
 
-Pynnex requires Python 3.10 or higher. This requirement ensures stable asyncio operations, as Python 3.10 introduced important improvements including:
+PynneX requires Python 3.10 or higher. This requirement ensures stable asyncio operations, as Python 3.10 introduced important improvements including:
 
 - Enhanced asyncio task cancellation and exception handling
 - More reliable coroutine execution and cleanup mechanisms
@@ -127,9 +127,9 @@ asyncio.run(main())
 - Connections: Use `signal.connect(receiver, slot)` to link signals to slots. Connections can also be made directly to functions or lambdas.
 
 ### Thread Safety and Connection Types
-Pynnex automatically detects whether the signal emission and slot execution occur in the same thread or different threads:
+PynneX automatically detects whether the signal emission and slot execution occur in the same thread or different threads:
 
-- **Auto Connection**: When connection_type is AUTO_CONNECTION (default), Pynnex checks whether the slot is a coroutine function or whether the caller and callee share the same thread affinity. If they are the same thread and slot is synchronous, it uses direct connection. Otherwise, it uses queued connection.
+- **Auto Connection**: When connection_type is AUTO_CONNECTION (default), PynneX checks whether the slot is a coroutine function or whether the caller and callee share the same thread affinity. If they are the same thread and slot is synchronous, it uses direct connection. Otherwise, it uses queued connection.
 - **Direct Connection**: If signal and slot share the same thread affinity, the slot is invoked directly.
 - **Queued Connection**: If they differ, the call is queued to the slot’s thread/event loop, ensuring thread safety.
 
@@ -164,7 +164,7 @@ e.data = 42  # Thread-safe property set; emits 'updated' signal on change
 ```
 
 ### Worker Threads
-For background work, Pynnex provides a `@nx_with_worker` decorator that:
+For background work, PynneX provides a `@nx_with_worker` decorator that:
 
 - Spawns a dedicated event loop in a worker thread.
 - Allows you to queue async tasks to this worker.
@@ -220,7 +220,7 @@ For more details, see the [Logging Guidelines](https://github.com/nexconnectio/p
 
 ## Testing
 
-Pynnex uses `pytest` for testing:
+PynneX uses `pytest` for testing:
 
 ```bash
 # Run all tests
@@ -247,4 +247,4 @@ Any donations or sponsorships received will be used solely for project maintenan
 Please note that financial contributions support only the project's maintenance and do not grant financial rewards to individual contributors.
 
 ## License
-Pynnex is licensed under the MIT License. See [LICENSE](https://github.com/nexconnectio/pynnex/blob/main/LICENSE) for details.
+`PynneX` is licensed under the MIT License. See [LICENSE](https://github.com/nexconnectio/pynnex/blob/main/LICENSE) for details.

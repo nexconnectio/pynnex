@@ -1,5 +1,5 @@
 """
-Pynnex - A lightweight, pure-Python signal/slot library.
+PynneX - a Python library that offers a modern signal-slot mechanism with seamless thread safety.
 """
 
 from .core import (

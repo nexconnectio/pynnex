@@ -3,7 +3,7 @@
 # pylint: disable=unused-argument
 
 """
-Test cases for thread safety of Pynnex.
+Test cases for thread safety of PynneX.
 """
 
 import unittest
@@ -44,12 +44,12 @@ class SafeReceiver:
 
 class TestThreadSafe(unittest.IsolatedAsyncioTestCase):
     """
-    Test cases for thread safety of Pynnex.
+    Test cases for thread safety of PynneX.
     """
 
     async def test_thread_safety(self):
         """
-        Test thread safety of Pynnex.
+        Test thread safety of PynneX.
         """
 
         sender = SafeSender()

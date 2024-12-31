@@ -1,7 +1,7 @@
 # API Reference
 
 ## Requirements
-Pynnex requires Python 3.10 or higher, and a running `asyncio` event loop for any async usage.
+`PynneX` requires Python 3.10 or higher, and a running `asyncio` event loop for any async usage.
 
 ## Decorators
 
@@ -45,7 +45,7 @@ self.my_signal.emit(value)
 ```
 
 ### `@nx_slot`
-Marks a method as a slot. Slots can be synchronous or asynchronous methods. Pynnex automatically handles cross-thread invocation—**but only if there is a running event loop**.  
+Marks a method as a slot. Slots can be synchronous or asynchronous methods. PynneX automatically handles cross-thread invocation—**but only if there is a running event loop**.  
 
 **Usage:**
 
@@ -61,7 +61,7 @@ async def on_async_signal(self, value):
 ```
 
 **Event Loop Requirement**:
-If the decorated slot is async, or if the slot might be called from another thread, Pynnex uses asyncio scheduling. That means a running event loop is mandatory. If no loop is found, a RuntimeError is raised.
+If the decorated slot is async, or if the slot might be called from another thread, PynneX uses asyncio scheduling. That means a running event loop is mandatory. If no loop is found, a RuntimeError is raised.
 
 ### `@nx_with_worker`
 Decorates a class to run inside a dedicated worker thread with its own event loop. Ideal for offloading tasks without blocking the main thread. When using @nx_with_worker, the worker thread automatically sets up its own event loop, so calls within that worker are safe. For the main thread, you still need an existing loop if you plan on using async slots or cross-thread signals. The worker provides:
@@ -134,7 +134,7 @@ print(model.value) # Also thread-safe
 ```
 
 ## Classes
-### `Pynnex`
+### `PynneX`
 Represents a signal. Signals are created by `@nx_signal` and accessed as class attributes.
 
 **Key Methods**:

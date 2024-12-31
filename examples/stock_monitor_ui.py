@@ -7,7 +7,7 @@
 """
 Stock monitor UI example.
 
-Demonstrates integrating Pynnex-based signals/slots into a Kivy GUI application.
+Demonstrates integrating PynneX-based signals/slots into a Kivy GUI application.
 It showcases a real-time price update loop (`StockService`), an alert/processing
 component (`StockProcessor`), and a Kivy-based front-end (`StockView`) for
 visualizing and setting stock alerts, all running asynchronously.

@@ -5,7 +5,7 @@
 # pylint: disable=too-many-locals
 
 """
-Test cases for the Pynnex signal pattern.
+Test cases for the PynneX signal pattern.
 """
 
 import asyncio
