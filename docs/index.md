@@ -1,6 +1,6 @@
-# Pynnex
+# PynneX
 
-Pynnex is a lightweight, pure-Python signal/slot library that provides thread-safe, asyncio-compatible event handling. It enables clean decoupling of components, seamless thread-to-thread communication, and flexible asynchronous/synchronous slot handling.
+PynneX is a lightweight, pure-Python signal/slot library that provides thread-safe, asyncio-compatible event handling. It enables clean decoupling of components, seamless thread-to-thread communication, and flexible asynchronous/synchronous slot handling.
 
 ## Key Features
 
@@ -14,9 +14,9 @@ Pynnex is a lightweight, pure-Python signal/slot library that provides thread-sa
 - **Weak Reference**: 
   - By setting `weak=True` when connecting a slot, the library holds a weak reference to the receiver object. This allows the receiver to be garbage-collected if there are no other strong references to it. Once garbage-collected, the connection is automatically removed, preventing stale references.
 
-## Why Pynnex?
+## Why PynneX?
 
-Modern Python applications often rely on asynchronous operations and multi-threading. Traditional event frameworks either require large external dependencies or lack seamless async/thread support. Pynnex provides:
+Modern Python applications often rely on asynchronous operations and multi-threading. Traditional event frameworks either require large external dependencies or lack seamless async/thread support. PynneX provides:
 
 - A minimal, dependency-free solution for event-driven architectures.
 - Smooth integration with asyncio for modern async Python code.
@@ -44,7 +44,7 @@ Modern Python applications often rely on asynchronous operations and multi-threa
 
 ## Installation
 
-Pynnex requires Python 3.10 or higher. This requirement ensures stable asyncio operations, as Python 3.10 introduced important improvements including:
+PynneX requires Python 3.10 or higher. This requirement ensures stable asyncio operations, as Python 3.10 introduced important improvements including:
 
 - Enhanced asyncio task cancellation and exception handling
 - More reliable coroutine execution and cleanup mechanisms
@@ -123,16 +123,16 @@ asyncio.run(main())
 - Connections: Use `signal.connect(receiver, slot)` to link signals to slots. Connections can also be made directly to functions or lambdas.
 
 ### Thread Safety and Connection Types
-Pynnex automatically detects whether the signal emission and slot execution occur in the same thread or different threads:
+PynneX automatically detects whether the signal emission and slot execution occur in the same thread or different threads:
 
-- **Auto Connection**: When connection_type is AUTO_CONNECTION (default), Pynnex checks whether the slot is a coroutine function or whether the caller and callee share the same thread affinity. If they are the same thread and slot is synchronous, it uses direct connection. Otherwise, it uses queued connection.
+- **Auto Connection**: When connection_type is AUTO_CONNECTION (default), PynneX checks whether the slot is a coroutine function or whether the caller and callee share the same thread affinity. If they are the same thread and slot is synchronous, it uses direct connection. Otherwise, it uses queued connection.
 - **Direct Connection**: If signal and slot share the same thread affinity, the slot is invoked directly.
 - **Queued Connection**: If they differ, the call is queued to the slot’s thread/event loop, ensuring thread safety.
 
 This mechanism frees you from manually dispatching calls across threads.
 
 ### Worker Threads
-For background work, Pynnex provides a `@with_worker` decorator that:
+For background work, PynneX provides a `@nx_with_worker` decorator that:
 
 - Spawns a dedicated event loop in a worker thread.
 - Allows you to queue async tasks to this worker.
@@ -170,7 +170,7 @@ processor.stop()
 ```
 
 ## From Basics to Practical Use Cases
-We’ve expanded Pynnex’s examples to guide you from simple demos to full-fledged applications. Each example has its own GitHub link with fully commented code.
+We’ve expanded PynneX’s examples to guide you from simple demos to full-fledged applications. Each example has its own GitHub link with fully commented code.
 
 For detailed explanations, code walkthroughs, and architecture diagrams of these examples, check out our [Examples Documentation](https://github.com/nexconnectio/pynnex/blob/main/docs/examples.md).
 
@@ -191,7 +191,7 @@ For detailed explanations, code walkthroughs, and architecture diagrams of these
 ### Stock Monitor (Console & GUI)
 
 - [stock_monitor_simple.py](https://github.com/nexconnectio/pynnex/blob/main/examples/stock_monitor_simple.py)
-  - A minimal stock monitor that periodically updates a display. Perfect for learning how Pynnex can orchestrate real-time updates without blocking.
+  - A minimal stock monitor that periodically updates a display. Perfect for learning how PynneX can orchestrate real-time updates without blocking.
 
 - [stock_monitor_console.py](https://github.com/nexconnectio/pynnex/blob/main/examples/stock_monitor_console.py)
   - A CLI-based interface that lets you type commands to set alerts, list them, and watch stock data update in real time.  
@@ -202,14 +202,14 @@ For detailed explanations, code walkthroughs, and architecture diagrams of these
 </div> 
 
 - [stock_monitor_ui.py](https://github.com/nexconnectio/pynnex/blob/main/examples/stock_monitor_ui.py)
-  - A more elaborate Kivy-based UI example showcasing real-time stock monitoring. You'll see how Pynnex updates the interface instantly without freezing the GUI. This example underscores how Pynnex’s thread and event-loop management keeps your UI responsive and your background tasks humming.
+  - A more elaborate Kivy-based UI example showcasing real-time stock monitoring. You'll see how PynneX updates the interface instantly without freezing the GUI. This example underscores how PynneX’s thread and event-loop management keeps your UI responsive and your background tasks humming.
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/nexconnectio/pynnex/refs/heads/main/docs/images/stock_monitor_ui.png" alt="Stock Monitor UI" width="800"/>
   <p><em>Stock Monitor UI: Real-time price updates, alert configuration, and notification history in action</em></p>
 </div>
 
-Together, these examples highlight Pynnex’s versatility—covering everything from quick demos to production-like patterns with threads, queues, and reactive UI updates.
+Together, these examples highlight PynneX’s versatility—covering everything from quick demos to production-like patterns with threads, queues, and reactive UI updates.
 
 ## Documentation and Example
 - [Usage Guide](https://github.com/nexconnectio/pynnex/blob/main/docs/usage.md): Learn how to define signals/slots, manage threads, and structure your event-driven code.
@@ -229,4 +229,4 @@ Together, these examples highlight Pynnex’s versatility—covering everything 
    - We welcome contributions! Please read our [Contributing Guidelines](https://github.com/nexconnectio/pynnex/blob/main/CONTRIBUTING.md) before submitting PRs.
 
 ## License
-Pynnex is licensed under the MIT License. See [LICENSE](https://github.com/nexconnectio/pynnex/blob/main/LICENSE) for details.
+PynneX is licensed under the MIT License. See [LICENSE](https://github.com/nexconnectio/pynnex/blob/main/LICENSE) for details.
