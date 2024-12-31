@@ -1,7 +1,7 @@
 # Usage Guide
 
 ## Requirements
-Pynnex requires Python 3.10 or higher.
+`PynneX` requires Python 3.10 or higher.
 
 ## Table of Contents
 1. [Basic Concepts](#basic-concepts)
@@ -14,7 +14,7 @@ Pynnex requires Python 3.10 or higher.
 8. [Worker Thread Pattern](#worker-thread-pattern)
 
 ## Basic Concepts
-Pynnex implements a signal-slot pattern, allowing loose coupling between components. Core ideas:
+PynneX implements a signal-slot pattern, allowing loose coupling between components. Core ideas:
 
 - **Signal**: An event source that can be emitted.
 - **Slot**: A function/method that responds to a signal.
@@ -107,7 +107,7 @@ Copy code
 # Usage Guide
 
 ## Requirements
-Pynnex requires Python 3.10 or higher.
+PynneX requires Python 3.10 or higher.
 
 ## Table of Contents
 1. [Basic Concepts](#basic-concepts)
@@ -120,7 +120,7 @@ Pynnex requires Python 3.10 or higher.
 8. [Worker Thread Pattern](#worker-thread-pattern)
 
 ## Basic Concepts
-Pynnex implements a signal-slot pattern, allowing loose coupling between components. Core ideas:
+PynneX implements a signal-slot pattern, allowing loose coupling between components. Core ideas:
 
 - **Signal**: An event source that can be emitted.
 - **Slot**: A function/method that responds to a signal.
@@ -219,11 +219,11 @@ signal.connect(receiver, receiver.on_slot, connection_type=NxConnectionType.QUEU
 ## Threading and Async
 **Thread Safety**
 
-Pynnex ensures thread-safe signal emissions. Signals can be emitted from any thread. Slots execute in their designated event loop (often the thread they were created in).
+PynneX ensures thread-safe signal emissions. Signals can be emitted from any thread. Slots execute in their designated event loop (often the thread they were created in).
 
 **Async Integration**
 
-Pynnex works with asyncio event loops:
+PynneX works with asyncio event loops:
 
 ```python
 async def main():
@@ -300,7 +300,7 @@ worker.start(config={'threads':4})
 ```
 
 ## Putting It All Together
-Pynnex allows you to:
+PynneX allows you to:
 
 - Define signals and slots easily.
 - Connect them across threads and async contexts without manual synchronization.

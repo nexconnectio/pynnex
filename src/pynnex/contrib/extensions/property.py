@@ -53,7 +53,7 @@ class NxProperty(property):
       inferred from the property name (e.g. `value` -> `self._value`).
     - If `notify` is set, `signal.emit(new_value)` is called whenever the property changes.
     - Reading or writing this property from its "home" thread is done synchronously;
-      from any other thread, Pynnex automatically queues the operation in the
+      from any other thread, PynneX automatically queues the operation in the
       object's event loop.
 
     Example
@@ -178,7 +178,7 @@ def nx_property(notify=None):
 
     Parameters
     ----------
-    notify : Pynnex, optional
+    notify : NxSignal, optional
         If provided, this signal is automatically emitted when the property's value changes.
 
     Returns

@@ -8,7 +8,7 @@ Stock monitor simple example.
 
 This module shows a straightforward example of using a worker (`DataWorker`)
 to generate data continuously and a display (`DataDisplay`) to process and
-log that data on the main thread. It's a minimal demonstration of Pynnex's
+log that data on the main thread. It's a minimal demonstration of PynneX's
 thread-safe signal/slot invocation.
 """
 

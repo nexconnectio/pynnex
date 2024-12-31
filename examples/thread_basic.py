@@ -4,7 +4,7 @@
 Thread Communication Example
 
 This example demonstrates thread-safe communication between UI (main thread) and 
-backend (worker thread) components using Pynnex:
+backend (worker thread) components using PynneX:
 
 1. Main Thread:
    - UserView: UI component that displays data and handles user input

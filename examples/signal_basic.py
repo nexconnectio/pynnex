@@ -3,7 +3,7 @@
 """
 Basic Signal-Slot Example
 
-This example demonstrates the fundamental usage of Pynnex with a synchronous slot:
+This example demonstrates the fundamental usage of PynneX with a synchronous slot:
 1. Creating a signal
 2. Connecting a regular method as a slot (without @nx_slot)
 3. Emitting a signal to trigger slot execution

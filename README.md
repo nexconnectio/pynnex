@@ -5,7 +5,7 @@
 pip install pynnex
 ```
 
-`PynneX` is a lightweight, pure-Python signal/slot library that provides thread-safe, asyncio-compatible event handling. It enables clean decoupling of components, seamless thread-to-thread communication, and flexible asynchronous/synchronous slot handling.
+`PynneX` is a Python library that offers a modern signal-slot mechanism with seamless thread safety, asynchronous handling, and automatic connection-type detection. It empowers you to build clean, event-driven architectures without tightly coupling components, all while ensuring thread synchronization and clear separation of concerns. Whether you're working with multiple threads or asyncio-based coroutines, pynnex keeps communication straightforward and maintainable, allowing you to focus on the logic that truly matters.
 
 ## Key Features
 
@@ -220,7 +220,7 @@ For more details, see the [Logging Guidelines](https://github.com/nexconnectio/p
 
 ## Testing
 
-Pynnex uses `pytest` for testing:
+PynneX uses `pytest` for testing:
 
 ```bash
 # Run all tests

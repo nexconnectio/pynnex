@@ -3,7 +3,7 @@
 """
 Thread Worker Pattern Example
 
-This example demonstrates the worker thread pattern using Pynnex's nx_with_worker decorator:
+This example demonstrates the worker thread pattern using PynneX's nx_with_worker decorator:
 
 1. Worker Thread:
    - ImageProcessor: A worker class that processes images in background

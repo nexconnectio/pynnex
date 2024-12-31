@@ -3,7 +3,7 @@
 """
 Async Signal Example
 
-This example demonstrates the basic usage of Pynnex with async slots:
+This example demonstrates the basic usage of PynneX with async slots:
 1. Creating a signal
 2. Connecting an async slot
 3. Emitting a signal to async handler

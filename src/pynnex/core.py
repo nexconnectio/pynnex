@@ -680,7 +680,7 @@ def nx_signal(func):
     """
     Decorator that defines a signal attribute within a class decorated by `@nx_with_signals`.
     The decorated function name is used as the signal name, and it provides a lazy-initialized
-    `Pynnex` instance.
+    `NxSignal` instance.
 
     Parameters
     ----------
@@ -692,7 +692,7 @@ def nx_signal(func):
     Returns
     -------
     NxSignalProperty
-        A property-like descriptor that, when accessed, returns the underlying `Pynnex` object.
+        A property-like descriptor that, when accessed, returns the underlying `NxSignal` object.
 
     Notes
     -----
@@ -711,7 +711,7 @@ def nx_signal(func):
     See Also
     --------
     nx_with_signals : Decorates a class to enable signal/slot features.
-    Pynnex : The class representing an actual signal (internal usage).
+    NxSignal : The class representing an actual signal (internal usage).
     """
 
     sig_name = func.__name__
@@ -729,11 +729,11 @@ def nx_signal(func):
 
 def nx_slot(func):
     """
-    Decorator that marks a method as a 'slot' for Pynnex. Slots can be either synchronous
-    or asynchronous, and Pynnex automatically handles cross-thread invocation.
+    Decorator that marks a method as a 'slot' for PynneX. Slots can be either synchronous
+    or asynchronous, and PynneX automatically handles cross-thread invocation.
 
     If this decorated method is called directly (i.e., not via a signal’s `emit()`)
-    from a different thread than the slot’s home thread/event loop, Pynnex also ensures
+    from a different thread than the slot’s home thread/event loop, PynneX also ensures
     that the call is dispatched (queued) correctly to the slot's thread. This guarantees
     consistent and thread-safe execution whether the slot is triggered by a signal emit
     or by a direct method call.
@@ -741,7 +741,7 @@ def nx_slot(func):
     Parameters
     ----------
     func : function or coroutine
-        The method to be decorated as a slot. If it's a coroutine (async def), Pynnex
+        The method to be decorated as a slot. If it's a coroutine (async def), PynneX
         treats it as an async slot.
 
     Returns
@@ -753,8 +753,8 @@ def nx_slot(func):
     Notes
     -----
     - If the slot is synchronous and the emitter (or caller) is in another thread,
-      Pynnex queues a function call to the slot’s thread/event loop.
-    - If the slot is asynchronous (`async def`), Pynnex ensures that the coroutine
+      PynneX queues a function call to the slot’s thread/event loop.
+    - If the slot is asynchronous (`async def`), PynneX ensures that the coroutine
       is scheduled on the correct event loop.
     - The threading affinity and event loop references are automatically assigned
       by `@nx_with_signals` or `@nx_with_worker` when the class instance is created.
@@ -860,7 +860,7 @@ def nx_slot(func):
 
 def nx_with_signals(cls=None, *, loop=None, weak_default=True):
     """
-    Class decorator that enables the use of Pynnex-based signals and slots.
+    Class decorator that enables the use of PynneX-based signals and slots.
     When applied, it assigns an event loop and a thread affinity to each instance,
     providing automatic threading support for signals and slots.
 
@@ -871,7 +871,7 @@ def nx_with_signals(cls=None, *, loop=None, weak_default=True):
         applied to a class.
     loop : asyncio.AbstractEventLoop, optional
         An event loop to be assigned to the instances of the decorated class. If omitted,
-        Pynnex attempts to retrieve the current running loop. If none is found, it raises
+        PynneX attempts to retrieve the current running loop. If none is found, it raises
         an error or creates a new event loop in some contexts.
     weak_default : bool, optional
         Determines the default value for `weak` connections on signals from instances of
