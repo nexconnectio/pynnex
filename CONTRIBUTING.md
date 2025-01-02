@@ -1,4 +1,6 @@
-Thank you for your interest in contributing to `PynneX`! This document provides guidelines and instructions for contributing to the project.
+<!-- CONTRIBUTING.md -->
+
+Thank you for your interest in contributing to Pynnex! This document provides guidelines and instructions for contributing to the project.
 
 ## Important Notice
 Please note that while we greatly appreciate and welcome contributions, this project does not provide financial compensation for contributions. Any donations or sponsorships received are used solely for project maintenance and improvement, and are not distributed to individual contributors.

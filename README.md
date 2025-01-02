@@ -1,57 +1,56 @@
+<!-- README.md -->
+
+[![PyPI Version](https://img.shields.io/pypi/v/pynnex.svg)](https://pypi.org/project/pynnex/)
+[![License](https://img.shields.io/github/license/nexconnectio/pynnex.svg)](https://github.com/nexconnectio/pynnex/blob/main/LICENSE)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/nexconnectio/pynnex/tests.yml?branch=main)](https://github.com/nexconnectio/pynnex/actions)
+[![Downloads](https://img.shields.io/pypi/dm/pynnex)](https://pypi.org/project/pynnex/)
+
 # PynneX
 
-```bash
-# New package installation:
-pip install pynnex
-```
+**Looking for a lightweight alternative to heavy Signals/Slots libraries in an asynchronous and multi-threaded environment?**  
+PynneX is a pure-Python (asyncio-based) library that streamlines event-driven concurrency without the overhead of larger GUI frameworks or external dependencies.
 
-`PynneX` is a Python library that offers a modern signal-slot mechanism with seamless thread safety, asynchronous handling, and automatic connection-type detection. It empowers you to build clean, event-driven architectures without tightly coupling components, all while ensuring thread synchronization and clear separation of concerns. Whether you're working with multiple threads or asyncio-based coroutines, pynnex keeps communication straightforward and maintainable, allowing you to focus on the logic that truly matters.
-
-## Key Features
-
-- **Pure Python**: No external dependencies needed.
-- **Async/Await Friendly**: Slots can be synchronous or asynchronous, and integrate seamlessly with asyncio.
-- **Thread-Safe**: Signal emissions and slot executions are automatically managed for thread safety.
-- **Flexible Connection Types**: Direct or queued connections, automatically chosen based on the caller and callee threads.
-- **Worker Thread Pattern**: Simplify background task execution with a built-in worker pattern that provides an event loop and task queue in a dedicated thread.
-- **Familiar Decorators**: Simple decorators let you define signals and slots declaratively. Core decorators (`@nx_with_signals`, `@nx_signal`, `@nx_slot`, `@nx_with_worker`) are also available without the `nx_` prefix for convenience (i.e., you can use `@with_signals`, `@signal`, `@slot`, `@with_worker`). This makes the code more concise and familiar to users of similar frameworks.
-- **Thread-Safe Properties**: The `@nx_property` decorator provides thread-safe property access with automatic signal emission on changes.
-- **Weak Reference**: 
-  - By setting `weak=True` when connecting a slot, the library holds a weak reference to the receiver object. This allows the receiver to be garbage-collected if there are no other strong references to it. Once garbage-collected, the connection is automatically removed, preventing stale references.
-
-### **Requires an Existing Event Loop**
-
-Since PynneX relies on Python’s `asyncio` infrastructure for scheduling async slots and cross-thread calls, you **must** have a running event loop before using PynneX’s decorators like `@nx_with_signals` or `@nx_slot`. Typically, this means:
-
-1. **Inside `asyncio.run(...)`:**  
-   For example:
-   ```python
-   async def main():
-       # create objects, do your logic
-       ...
-   asyncio.run(main())
-   ```
-
-2. **@nx_with_worker Decorator:**
-   If you decorate a class with `@nx_with_worker`, it automatically creates a worker thread with its own event loop. That pattern is isolated to the worker context, so any other async usage in the main thread also needs its own loop.
-
-If no event loop is running when a slot is called, PynneX will raise a RuntimeError instead of creating a new loop behind the scenes. This ensures consistent concurrency behavior and avoids hidden loops that might never process tasks.
+---
 
 ## Why PynneX?
 
-Modern Python applications often rely on asynchronous operations and multi-threading. Traditional event frameworks either require large external dependencies or lack seamless async/thread support. PynneX provides:
+Modern Python applications often blend async I/O and multithreading. Typical Signals/Slots solutions from GUI toolkits or external libraries can impose extra dependencies, especially when you only need concurrency handling rather than full UI features.
 
-- A minimal, dependency-free solution for event-driven architectures.
-- Smooth integration with asyncio for modern async Python code.
-- Automatic thread-affinity handling so cross-thread signals "just work."
-- Decorator-based API that’s intuitive and maintainable.
+PynneX offers a **focused** approach:
+- Decorator-based signals and slots for clean, event-driven code
+- Built-in **thread-safety**, so you don’t manually deal with locks or queues
+- Easy background task handling via `@nx_with_worker`
+- Seamless integration with **asyncio** (async or sync slots)
+- No external dependencies beyond Python 3.10+ (for improved asyncio support)
+
+As a result, events flow safely across threads and coroutines without “callback spaghetti,” giving you a cleaner concurrency model in pure Python.
+
+---
+
+## Key Features
+
+- **Pure Python**: No external dependencies needed  
+- **Async/Await Friendly**: Slots can be synchronous or asynchronous, integrating naturally with `asyncio`  
+- **Thread-Safe**: Automatically manages signal emissions and slot executions across thread boundaries  
+- **Flexible Connection Types**: Direct or queued connections, chosen based on whether caller/callee share the same thread  
+- **Worker Thread Pattern**: Decorator `@nx_with_worker` provides a dedicated thread & event loop, simplifying background tasks  
+- **Familiar Decorators**: `@nx_signal`, `@nx_slot`, `@nx_with_worker`; also available without `nx_` prefix  
+- **Thread-Safe Properties**: Use `@nx_property` to emit signals on value changes, with automatic thread dispatch  
+- **Weak Reference**: If you connect a slot with `weak=True`, the connection is removed automatically once the receiver is garbage-collected
+
+### **Requires an Existing Event Loop**
+
+PynneX depends on Python’s `asyncio`. You **must** have a running event loop (e.g., `asyncio.run(...)`) for certain features like async slots or cross-thread calls.  
+If no event loop is running, PynneX raises a `RuntimeError` instead of creating one behind the scenes—this ensures predictable concurrency behavior.
 
 ## Installation
 
-PynneX requires Python 3.10 or higher. This requirement ensures stable asyncio operations, as Python 3.10 introduced important improvements including:
+```bash
+pip install pynnex
+```
 
-- Enhanced asyncio task cancellation and exception handling
-- More reliable coroutine execution and cleanup mechanisms
+PynneX requires **Python 3.10+**, leveraging newer asyncio improvements.
+Alternatively, clone from GitHub and install locally: 
 
 ```bash
 git clone https://github.com/nexconnectio/pynnex.git
@@ -64,9 +63,54 @@ For development (includes tests and linting tools):
 pip install -e ".[dev]
 ```
 
-## Quick Start
+## Quick Hello (Signals/Slots)
 
-### Basic Example
+Here’s the simplest “Hello, Signals/Slots” example. Once installed, run the snippet below:
+
+```python
+# hello_pynnex.py
+from pynnex import with_signals, signal, slot
+
+@with_signals
+class Greeter:
+    @signal
+    def greet(self):
+        """Signal emitted when greeting happens."""
+        pass
+
+    def say_hello(self):
+        self.greet.emit("Hello from PynneX!")
+
+@with_signals
+class Printer:
+    @slot
+    def on_greet(self, message):
+        print(message)
+
+greeter = Greeter()
+printer = Printer()
+
+# Connect the signal to the slot
+greeter.greet.connect(printer, printer.on_greet)
+
+# Fire the signal
+greeter.say_hello()
+```
+
+**Output:**
+```
+Hello from PynneX!
+```
+
+By simply defining `signal` and `slot`, you can set up intuitive event handling that also works smoothly in multithreaded contexts.
+
+---
+
+## Usage & Examples
+
+Below are some brief examples. For more, see the [docs/](https://github.com/nexconnectio/pynnex/blob/main/docs/) directory.
+
+### Basic Counter & Display
 ```python
 from pynnex import with_signals, signal, slot
 
@@ -220,7 +264,7 @@ For more details, see the [Logging Guidelines](https://github.com/nexconnectio/p
 
 ## Testing
 
-PynneX uses `pytest` for testing:
+Pynnex uses `pytest` for testing:
 
 ```bash
 # Run all tests
@@ -239,10 +283,7 @@ See the [Testing Guide](https://github.com/nexconnectio/pynnex/blob/main/docs/te
 We welcome contributions! Please read our [Contributing Guidelines](https://github.com/nexconnectio/pynnex/blob/main/CONTRIBUTING.md) before submitting PRs.
 
 ## Sponsorship & Donations
-Any donations or sponsorships received will be used solely for project maintenance and improvement, such as:
-- Infrastructure costs (hosting, CI/CD, etc.)
-- Documentation and testing improvements
-- Project development and maintenance
+If PynneX has helped simplify your async/multithreaded workflows, please consider [sponsoring us](https://github.com/nexconnectio/pynnex/blob/main/.github/FUNDING.yml). All funds go toward infrastructure, documentation, and future development.
 
 Please note that financial contributions support only the project's maintenance and do not grant financial rewards to individual contributors.
 
