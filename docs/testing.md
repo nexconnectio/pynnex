@@ -1,7 +1,9 @@
+<!-- docs/testing.md -->
+
 # Testing Guide
 
 ## Overview
-`PynneX` requires Python 3.10 or higher and uses pytest for testing. Our test suite includes unit tests, integration tests, performance tests, and supports async testing.
+Pynnex requires Python 3.10 or higher and uses pytest for testing. Our test suite includes unit tests, integration tests, performance tests, and supports async testing.
 
 ## Test Structure
 ```

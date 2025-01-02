@@ -1,3 +1,5 @@
+<!-- LICENCE.md -->
+
 MIT License
 
 Copyright (c) 2024 San Kim

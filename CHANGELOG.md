@@ -1,3 +1,5 @@
+<!-- CHANGELOG.md -->
+
 # Changelog
 All notable changes to this project will be documented in this file.
 
@@ -7,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.0] - 2024-12-28
 
 ### Added
-- Initial release of PynneX (rebranded from tsignal)
+- Initial release of Pynnex (rebranded from tsignal)
 - Comprehensive signal-slot mechanism with Python 3.10+ features
 - Core Features:
   - Robust signal-slot communication pattern

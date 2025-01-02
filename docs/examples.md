@@ -1,6 +1,6 @@
+<!-- docs/examples.md -->
 
-
-This document provides an overview and explanation of the included examples. Each example demonstrates various aspects of using `PynneX`, from basic signal-slot handling to more complex threaded worker patterns and UI integrations.
+This document provides an overview and explanation of the included examples. Each example demonstrates various aspects of using Pynnex, from basic signal-slot handling to more complex threaded worker patterns and UI integrations.
 
 # Table of Contents
   
@@ -19,7 +19,7 @@ This document provides an overview and explanation of the included examples. Eac
 ---
 
 ### signal_basic.py [(source)](https://github.com/nexconnectio/pynnex/blob/main/examples/signal_basic.py)
-**Purpose**: Introduces the most basic usage of PynneX:
+**Purpose**: Introduces the most basic usage of Pynnex:
 - Defining signals on a class (`@nx_signal`)
 - Defining synchronous slots
 - Connecting signals to slots and emitting signals
@@ -61,7 +61,7 @@ sequenceDiagram
     end
 ```
 
-Use this as a starting point if you’re new to PynneX. There’s no threading or async complexity—just a straightforward signal-slot mechanism.
+Use this as a starting point if you’re new to Pynnex. There’s no threading or async complexity—just a straightforward signal-slot mechanism.
 
 ---
 
@@ -161,7 +161,7 @@ sequenceDiagram
     Note over M: Program ends
 ```
 
-This example is a good starting point for learning how PynneX can be used in a functional programming style, especially for developers who prefer non-class-based approaches.
+This example is a good starting point for learning how Pynnex can be used in a functional programming style, especially for developers who prefer non-class-based approaches.
 
 ---
 
@@ -210,7 +210,7 @@ sequenceDiagram
     Note over M: Program ends
 ```
 
-This example showcases PynneX's flexibility, particularly useful for quick slot implementations for simple tasks. Lambda functions allow for simple processing of signals without the need for separate function or method definitions.
+This example showcases Pynnex's flexibility, particularly useful for quick slot implementations for simple tasks. Lambda functions allow for simple processing of signals without the need for separate function or method definitions.
 
 ---
 
@@ -468,12 +468,12 @@ sequenceDiagram
     CLI->>CLI: Exit loop and end program
 ```
 
-This example is great for seeing how PynneX can be scaled up to more realistic, production-like use cases.
+This example is great for seeing how Pynnex can be scaled up to more realistic, production-like use cases.
 
 ---
 
 ## stock_monitor_ui.py [(source)](https://github.com/nexconnectio/pynnex/blob/main/examples/stock_monitor_ui.py)
-**Purpose**: Shows how PynneX integrates with a GUI framework (Kivy):
+**Purpose**: Shows how Pynnex integrates with a GUI framework (Kivy):
 - Similar functionality to the console version, but with a graphical UI
 - `StockView` as a Kivy widget updates UI elements when signals fire
 - `set_alert` and `remove_alert` signals triggered from UI and handled by `StockProcessor`
@@ -485,7 +485,7 @@ This example is great for seeing how PynneX can be scaled up to more realistic, 
 </div>
 
 **What it demonstrates**:
-- Integrating PynneX with Kivy’s main loop and UI elements
+- Integrating Pynnex with Kivy’s main loop and UI elements
 - Thread-safe updates to UI from background workers
 - Handling user input, setting alerts, and reflecting changes on the UI
 
@@ -739,4 +739,4 @@ This example provides a strong architectural foundation for a real-time monitori
 - **stock_monitor_console.py** and **stock_monitor_ui.py**: Realistic, more complex examples that integrate multiple components, async processing, alerts, and UI/CLI interfaces.
 - **stock_core.py**: Core domain logic extracted for reuse in different UIs, demonstrating best practices in modular design.
 
-Use these examples in sequence to progressively gain expertise in PynneX's capabilities.
+Use these examples in sequence to progressively gain expertise in Pynnex's capabilities.

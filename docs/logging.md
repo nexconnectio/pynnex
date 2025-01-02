@@ -1,9 +1,11 @@
+<!-- docs/logging.md -->
+
 # Logging Guidelines
 
 ## Requirements
-`PynneX` requires Python 3.10 or higher.
+Pynnex requires Python 3.10 or higher.
 
-PynneX uses Python's standard logging module with the following levels:
+Pynnex uses Python's standard logging module with the following levels:
 
 - `DEBUG`: Detailed information about signal-slot connections and emissions
 - `INFO`: Important state changes and major events
