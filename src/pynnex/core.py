@@ -935,10 +935,10 @@ def nx_with_signals(cls=None, *, loop=None, weak_default=True):
             # Call the original __init__
             original_init(self, *args, **kwargs)
 
-        def move_to_thread(self, targetThread):
+        def move_to_thread(self, target_thread):
             """Change thread affinity of the instance to targetThread"""
 
-            targetThread._copy_affinity(self)
+            target_thread._copy_affinity(self)
 
         cls.__init__ = __init__
         cls.move_to_thread = move_to_thread

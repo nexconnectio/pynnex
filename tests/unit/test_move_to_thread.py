@@ -1,44 +1,58 @@
 # tests/unit/test_move_to_thread.py
 
+# pylint: disable=no-member
+# pylint: disable=unnecessary-lambda
+# pylint: disable=useless-with-lock
+# pylint: disable=unused-argument
+# pylint: disable=redefined-outer-name
+# pylint: disable=import-outside-toplevel
+
+"""
+Move to thread test.
+"""
+
 import asyncio
-import pytest
-import threading
 import logging
-from pynnex import nx_signal, nx_slot, nx_with_signals
-from pynnex import nx_with_worker
+import threading
+import pytest
+from pynnex import signal, slot, with_signals, with_worker
 
 logger = logging.getLogger(__name__)
 
 
-@nx_with_worker
+@with_worker
 class WorkerA:
-    """첫 번째 워커 스레드."""
+    """First worker thread."""
 
     async def run(self, *args, **kwargs):
+        """Run the worker thread."""
+
         logger.info("[WorkerA] run() started")
         await self.start_queue()
 
 
-@nx_with_worker
+@with_worker
 class WorkerB:
-    """두 번째 워커 스레드."""
+    """Second worker thread."""
 
     async def run(self, *args, **kwargs):
+        """Run the worker thread."""
+
         logger.info("[WorkerB] run() started")
         await self.start_queue()
 
 
-@nx_with_signals
+@with_signals
 class Mover:
     """
-    move_to_thread 테스트용 객체.
-    메인 스레드에서 생성 후,
-    WorkerA -> WorkerB 순서로 옮겨가며 시그널 동작을 확인한다.
+    move_to_thread test object.
+    Created in main thread, then moved to WorkerA -> WorkerB,
+    to check signal behavior.
     """
 
-    @nx_signal
+    @signal
     def data_ready(self, value):
-        """데이터가 준비되었음을 알리는 시그널."""
+        """Signal for data ready."""
 
     def __init__(self):
         super().__init__()
@@ -46,17 +60,19 @@ class Mover:
 
     def do_work(self, value):
         """
-        별도 스레드(또는 메인 스레드)에서
-        어떤 작업을 수행하고 시그널을 emit한다고 가정.
+        Assume some work is done in a separate thread (or main thread),
+        and emit a signal.
         """
+
         logger.info("[Mover][do_work] value=%s (thread=%s)", value, threading.current_thread().name)
         self.data_ready.emit(value)
 
-    @nx_slot
+    @slot
     def on_data_ready(self, value):
         """
-        data_ready 시그널을 수신하는 슬롯.
+        Slot for data_ready signal.
         """
+
         logger.info("[Mover][on_data_ready] value=%s (thread=%s)", value, threading.current_thread().name)
         self.emitted_values.append(value)
 
@@ -64,36 +80,36 @@ class Mover:
 @pytest.mark.asyncio
 async def test_move_to_thread():
     """
-    1) Mover 객체를 메인 스레드에서 생성
-    2) WorkerA 스레드로 move_to_thread
-    3) WorkerB 스레드로 move_to_thread
-    각각의 단계에서 시그널이 잘 emit/receive 되는지 확인
+    1) Create Mover object in main thread
+    2) Move to WorkerA thread
+    3) Move to WorkerB thread
+    Check if signal is emitted/received correctly in each step
     """
 
     logger.info("=== test_move_to_thread START ===")
 
-    # 1) 메인 스레드에서 Mover 생성
+    # 1) Create Mover object in main thread
     mover = Mover()
 
-    # 시그널 자체를 mover 내부 on_data_ready와 연결
+    # Connect signal to mover's on_data_ready method
     mover.data_ready.connect(mover, mover.on_data_ready)
 
-    # 2) WorkerA 준비
+    # 2) Prepare WorkerA
     worker_a = WorkerA()
-    worker_a.start()  # 스레드 + 이벤트 루프 시작
-    await asyncio.sleep(0.2)  # worker_a run() 시작 대기
+    worker_a.start()  # Start thread + event loop
+    await asyncio.sleep(0.2)  # Wait for worker_a run() to start
 
     # move_to_thread
     mover.move_to_thread(worker_a)
     logger.info("Mover moved to WorkerA thread")
 
-    # do_work 호출 -> WorkerA 스레드에서 emit 발생
+    # Call do_work -> WorkerA thread emits signal
     mover.do_work("from WorkerA")
-    await asyncio.sleep(0.3)  # 시그널 처리 대기
+    await asyncio.sleep(0.3)  # Wait for signal to be processed
 
-    assert "from WorkerA" in mover.emitted_values, "WorkerA에서 emit된 데이터가 수신되어야 함"
+    assert "from WorkerA" in mover.emitted_values, "The data emitted from WorkerA should be received"
 
-    # 3) WorkerB 준비
+    # 3) Prepare WorkerB
     worker_b = WorkerB()
     worker_b.start()
     await asyncio.sleep(0.2)
@@ -101,13 +117,13 @@ async def test_move_to_thread():
     mover.move_to_thread(worker_b)
     logger.info("Mover moved to WorkerB thread")
 
-    # do_work -> 이제 WorkerB에서 emit
+    # do_work -> Now WorkerB emits signal
     mover.do_work("from WorkerB")
     await asyncio.sleep(0.3)
 
-    assert "from WorkerB" in mover.emitted_values, "WorkerB에서 emit된 데이터가 수신되어야 함"
+    assert "from WorkerB" in mover.emitted_values, "The data emitted from WorkerB should be received"
 
-    # 정리
+    # Clean up
     worker_a.stop()
     worker_b.stop()
 

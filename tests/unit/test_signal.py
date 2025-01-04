@@ -3,6 +3,9 @@
 # pylint: disable=unused-argument
 # pylint: disable=unused-variable
 # pylint: disable=too-many-locals
+# pylint: disable=redefined-outer-name
+# pylint: disable=import-outside-toplevel
+# pylint: disable=reimported
 
 """
 Test cases for the PynneX signal pattern.
