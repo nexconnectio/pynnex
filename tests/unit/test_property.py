@@ -12,14 +12,13 @@ import asyncio
 import threading
 import logging
 import pytest
-from pynnex.contrib.extensions.property import nx_property
-from pynnex import nx_signal, nx_with_signals
+from pynnex import signal, with_signals, nx_property
 
 
 logger = logging.getLogger(__name__)
 
 
-@nx_with_signals
+@with_signals
 class Temperature:
     """Temperature class for testing"""
 
@@ -27,7 +26,7 @@ class Temperature:
         super().__init__()
         self._celsius = -273
 
-    @nx_signal
+    @signal
     def celsius_changed(self):
         """Signal for celsius change"""
 
@@ -42,7 +41,7 @@ class Temperature:
         self._celsius = value
 
 
-@nx_with_signals
+@with_signals
 class ReadOnlyTemperature:
     """ReadOnlyTemperature class for testing"""
 
@@ -50,7 +49,7 @@ class ReadOnlyTemperature:
         super().__init__()
         self._celsius = 0
 
-    @nx_signal
+    @signal
     def celsius_changed(self):
         """Signal for celsius change"""
 

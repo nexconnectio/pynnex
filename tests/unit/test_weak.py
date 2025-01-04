@@ -11,7 +11,7 @@ import unittest
 import gc
 import asyncio
 import weakref
-from pynnex.core import nx_with_signals, nx_signal
+from pynnex import with_signals, signal
 
 
 class WeakRefReceiver:
@@ -31,13 +31,13 @@ class WeakRefReceiver:
         print(f"WeakRefReceiver got value: {value}")
 
 
-@nx_with_signals(weak_default=True)
+@with_signals(weak_default=True)
 class WeakRefSender:
     """
     A class that sends weak reference events.
     """
 
-    @nx_signal
+    @signal
     def event(self):
         """
         Event signal.
@@ -65,13 +65,13 @@ class StrongRefReceiver:
         print(f"StrongRefReceiver got value: {value}")
 
 
-@nx_with_signals(weak_default=True)
+@with_signals(weak_default=True)
 class MixedSender:
     """
     A class that sends mixed reference events.
     """
 
-    @nx_signal
+    @signal
     def event(self, value):
         """
         Event signal.

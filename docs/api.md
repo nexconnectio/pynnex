@@ -23,6 +23,45 @@ Enables signal-slot functionality on a class. Classes decorated with `@nx_with_s
 
 **Important**: `@nx_with_signals` expects that you already have an `asyncio` event loop running (e.g., via `asyncio.run(...)`) unless you only rely on synchronous slots in a single-thread scenario. When in doubt, wrap your main logic in an async function and call `asyncio.run(main())`.
 
+**Key Methods**:
+
+`move_to_thread(target_worker)`
+Moves the instance to another thread by copying thread affinity from a worker. This allows dynamic thread reassignment of signal-slot objects.
+
+- **Parameters:**
+  - **target_worker:** A worker instance decorated with `@nx_with_worker`. The instance will adopt this worker's thread affinity.
+- **Raises:**
+  - **RuntimeError:** If the target worker's thread is not started.
+  - **TypeError:** If the target is not compatible (not decorated with `@nx_with_worker`).
+
+**Example:**
+```python
+@nx_with_worker
+class Worker:
+    async def run(self):
+        await self.wait_for_stop()
+
+@nx_with_signals
+class SignalEmitter:
+    @nx_signal
+    def value_changed(self):
+        pass
+
+worker = Worker()
+worker.start()
+
+emitter = SignalEmitter()
+emitter.move_to_thread(worker)  # Now emitter runs in worker's thread
+```
+
+**Usage:**
+```python
+@nx_with_signals
+class MyClass:
+    @nx_signal
+    def my_signal(self):
+        pass
+
 **Usage:**
 ```python
 @nx_with_signals
@@ -34,6 +73,15 @@ class MyClass:
 
 ### `@nx_signal`
 Defines a signal within a class that has `@nx_with_signals`. Signals are callable attributes that, when emitted, notify all connected slots.
+
+**Key Methods**:
+
+`emit(*args, **kwargs)`
+Emits the signal, invoking all connected slots with the provided arguments.
+
+- **Parameters:**
+  - ***args:** Positional arguments to pass to the connected slots.
+  - ****kwargs:** Keyword arguments to pass to the connected slots.
 
 **Usage:**
 
@@ -71,6 +119,25 @@ Decorates a class to run inside a dedicated worker thread with its own event loo
 - A dedicated event loop in another thread.
 - The `run(*args, **kwargs)` coroutine as the main entry point.
 - A built-in async task queue via `queue_task`.
+
+**Key Methods**:
+
+`start(*args, **kwargs)`
+Starts the worker thread and its event loop.
+- **Parameters:**
+  - ***args:** Positional arguments passed to the worker's `run()` method.
+  - ****kwargs:** Keyword arguments passed to the worker's `run()` method.
+
+`stop()`
+Stops the worker thread and its event loop gracefully.
+- Cancels any running tasks and waits for the thread to finish.
+
+`queue_task(coro)`
+Schedules a coroutine to run on the worker's event loop.
+- **Parameters:**
+  - **coro:** A coroutine object to be executed in the worker thread.
+- **Raises:**
+  - **RuntimeError:** If the worker is not started.
 
 **Key Points:**
 

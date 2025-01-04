@@ -3,6 +3,9 @@
 # pylint: disable=unused-argument
 # pylint: disable=unused-variable
 # pylint: disable=too-many-locals
+# pylint: disable=redefined-outer-name
+# pylint: disable=import-outside-toplevel
+# pylint: disable=reimported
 
 """
 Test cases for the PynneX signal pattern.
@@ -11,15 +14,14 @@ Test cases for the PynneX signal pattern.
 import asyncio
 import logging
 import pytest
-from pynnex.core import (
-    nx_with_signals,
-    nx_signal,
-    nx_slot,
+from pynnex import (
+    with_signals,
+    signal,
+    slot,
     NxSignal,
     NxConnectionType,
     _determine_connection_type,
 )
-from pynnex.contrib.patterns.worker.decorators import nx_with_worker
 from ..conftest import Receiver
 
 logger = logging.getLogger(__name__)
@@ -164,14 +166,14 @@ async def test_signal_disconnect_nonexistent(sender, receiver):
 async def test_signal_disconnect_during_emit(sender, receiver):
     """Test disconnecting slots while emission is in progress"""
 
-    @nx_with_signals
+    @with_signals
     class SlowReceiver:
         """Receiver class for slow slot"""
 
         def __init__(self):
             self.received_value = None
 
-        @nx_slot
+        @slot
         async def on_value_changed(self, value):
             """Slot for value changed"""
             await asyncio.sleep(0.1)
@@ -268,7 +270,7 @@ async def test_method_connection_with_signal_attributes(sender):
 
     received_values = []
 
-    @nx_with_signals
+    @with_signals
     class SignalReceiver:
         """Receiver class for signal attributes"""
 
@@ -318,6 +320,8 @@ async def test_method_connection_with_signal_attributes(sender):
 async def test_connection_type_determination():
     """Test connection type is correctly determined for different scenarios"""
 
+    from pynnex import signal, with_worker
+
     # Regular function should use DIRECT_CONNECTION
     def regular_handler(value):
         """Regular handler"""
@@ -334,37 +338,37 @@ async def test_connection_type_determination():
             """Handler"""
 
     # Regular class with thread/loop attributes
-    @nx_with_signals
+    @with_signals
     class RegularClassWithSignal:
         """Regular class with signal"""
 
-        @nx_signal
+        @signal
         def test_signal(self):
             """Signal"""
 
     # Class with thread/loop but not worker
-    @nx_with_signals
+    @with_signals
     class ThreadedClass:
         """Threaded class"""
 
-        @nx_slot
+        @slot
         def sync_handler(self, value):
             """Sync handler"""
 
-        @nx_slot
+        @slot
         async def async_handler(self, value):
             """Async handler"""
 
     # Worker class
-    @nx_with_worker
+    @with_worker
     class WorkerClass:
         """Worker class"""
 
-        @nx_slot
+        @slot
         def sync_handler(self, value):
             """Sync handler"""
 
-        @nx_slot
+        @slot
         async def async_handler(self, value):
             """Async handler"""
 
@@ -438,13 +442,13 @@ async def test_one_shot():
     then removed automatically upon the first call.
     """
 
-    @nx_with_signals
+    @with_signals
     class OneShotSender:
         """
         A class that sends one-shot events.
         """
 
-        @nx_signal
+        @signal
         def one_shot_event(self, value):
             """
             One-shot event signal.

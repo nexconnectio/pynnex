@@ -10,25 +10,25 @@ Test cases for memory usage.
 """
 
 import pytest
-from pynnex import nx_with_signals, nx_signal, nx_slot
+from pynnex import with_signals, signal, slot
 
 
 def create_complex_signal_chain():
     """Create a complex signal chain"""
 
-    @nx_with_signals
+    @with_signals
     class Sender:
         """Sender class"""
 
-        @nx_signal
+        @signal
         def signal(self):
             """Signal method"""
 
-    @nx_with_signals
+    @with_signals
     class Receiver:
         """Receiver class"""
 
-        @nx_slot
+        @slot
         def slot(self, value):
             """Slot method"""
 

@@ -11,7 +11,6 @@ Test cases for the worker pattern.
 import asyncio
 import logging
 import pytest
-from pynnex.contrib.patterns.worker.decorators import nx_with_worker
 from pynnex import NxSignalConstants, with_worker
 
 logger = logging.getLogger(__name__)
@@ -27,7 +26,7 @@ async def worker():
     if getattr(w, NxSignalConstants.THREAD, None) and w._nx_thread.is_alive():
         w.stop()
 
-@nx_with_worker
+@with_worker
 class TestWorker:
     """Test worker class"""
 
