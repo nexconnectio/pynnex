@@ -8,7 +8,10 @@ from .core import (
     nx_slot,
     nx_graceful_shutdown,
     NxConnectionType,
-    NxSignalConstants
+    NxConnection,
+    NxSignalConstants,
+    NxSignal,
+    _determine_connection_type
 )
 from .utils import nx_log_and_raise_error
 from .contrib.patterns.worker.decorators import nx_with_worker
@@ -29,5 +32,8 @@ __all__ = [
     'nx_log_and_raise_error',
     'nx_graceful_shutdown',
     'NxConnectionType',
-    'NxSignalConstants'
+    'NxConnection',
+    'NxSignalConstants',
+    'NxSignal',
+    '_determine_connection_type'
 ]

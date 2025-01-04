@@ -12,7 +12,7 @@ import threading
 import time
 import logging
 import pytest
-from pynnex.core import nx_with_signals, nx_signal, nx_slot
+from pynnex import with_signals, signal, slot
 
 logger = logging.getLogger(__name__)
 
@@ -77,15 +77,15 @@ async def test_call_slot_from_other_thread(receiver):
 async def test_connection_type_with_different_threads():
     """Test connection type is determined correctly for different thread scenarios"""
 
-    @nx_with_signals
+    @with_signals
     class Sender:
         """Sender class"""
 
-        @nx_signal
+        @signal
         def value_changed(self):
             """Signal emitted when value changes"""
 
-    @nx_with_signals
+    @with_signals
     class Receiver:
         """Receiver class"""
 
@@ -93,7 +93,7 @@ async def test_connection_type_with_different_threads():
             super().__init__()
             self.received = False
 
-        @nx_slot
+        @slot
         def on_value_changed(self, value):
             """Slot called when value changes"""
 

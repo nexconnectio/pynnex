@@ -15,7 +15,7 @@ import asyncio
 import inspect
 import logging
 import threading
-from pynnex.core import nx_signal
+from pynnex.core import nx_signal, NxSignalConstants
 
 logger = logging.getLogger(__name__)
 
@@ -185,7 +185,27 @@ def nx_with_worker(cls):
             )
 
         def queue_task(self, coro):
-            """Method to add a task to the queue"""
+            """
+            Schedules a coroutine to run on the worker's event loop in a thread-safe manner.
+
+            Parameters
+            ----------
+            coro : coroutine
+                A coroutine object to be executed in the worker thread.
+
+            Raises
+            ------
+            RuntimeError
+                If the worker is not started.
+            ValueError
+                If the provided argument is not a coroutine object.
+
+            Notes
+            -----
+            - Thread-safe: Can be called from any thread.
+            - Tasks are processed in FIFO order.
+            - Failed tasks are logged but don't stop queue processing.
+            """
 
             if not asyncio.iscoroutine(coro):
                 logger.error(
@@ -200,7 +220,23 @@ def nx_with_worker(cls):
             loop.call_soon_threadsafe(lambda: self._nx_task_queue.put_nowait(coro))
 
         def start(self, *args, **kwargs):
-            """Start the worker thread."""
+            """
+            Starts the worker thread and its event loop, initializing the worker's processing environment.
+
+            Parameters
+            ----------
+            *args : Any
+                Positional arguments passed to the worker's `run()` method.
+            **kwargs : Any
+                Keyword arguments passed to the worker's `run()` method.
+                - run_coro: Optional coroutine to run instead of the default `run()` method.
+
+            Notes
+            -----
+            - Creates a new thread with its own event loop.
+            - Automatically starts task queue processing if no `run()` method is defined.
+            - Emits `started` signal when initialization is complete.
+            """
 
             run_coro = kwargs.pop(_WorkerConstants.RUN_CORO, None)
 
@@ -277,7 +313,16 @@ def nx_with_worker(cls):
                 self._nx_thread.start()
 
         def stop(self):
-            """Stop the worker thread."""
+            """
+            Gracefully stops the worker thread and its event loop.
+
+            Notes
+            -----
+            - Cancels any running tasks including the main `run()` coroutine.
+            - Waits for task queue to finish processing.
+            - Emits `stopped` signal before final cleanup.
+            - Thread is joined with a 2-second timeout.
+            """
 
             logger.debug("[WorkerClass][stop] Starting worker shutdown")
 
@@ -297,12 +342,28 @@ def nx_with_worker(cls):
                     self._nx_loop = None
                     self._nx_thread = None
 
-        def move_to_thread(self, target):
+        def _copy_affinity(self, target):
             """
-            Move target object to this worker's thread and loop.
-            target must be an object created by nx_with_signals or nx_with_worker,
-            and the worker must be started with start() method.
+            Copy this worker's thread affinity (thread, loop, and affinity object) to the target.
+            This is an internal method used by move_to_thread() and should not be called directly.
+
+            The method copies thread, event loop, and affinity object references from this worker
+            to the target object, effectively moving the target to this worker's thread context.
+
+            Parameters
+            ----------
+            target : object
+                Target object that will receive this worker's thread affinity.
+                Must be decorated with @nx_with_signals or @nx_with_worker.
+
+            Raises
+            ------
+            RuntimeError
+                If the worker thread is not started.
+            TypeError
+                If the target is not compatible (not decorated with @nx_with_signals or @nx_with_worker).
             """
+
             with self._nx_lifecycle_lock:
                 if not self._nx_thread or not self._nx_loop:
                     raise RuntimeError(
@@ -312,8 +373,8 @@ def nx_with_worker(cls):
 
             # Assume target is initialized with nx_with_signals
             # Reset target's _nx_thread, _nx_loop, _nx_affinity
-            if not hasattr(target, "_nx_thread") or not hasattr(
-                target, "_nx_loop"
+            if not hasattr(target, NxSignalConstants.THREAD) or not hasattr(
+                target, NxSignalConstants.LOOP
             ):
                 raise TypeError(
                     "[WorkerClass][move_to_thread] Target is not compatible. "

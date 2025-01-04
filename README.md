@@ -217,7 +217,7 @@ For background work, PynneX provides a `@nx_with_worker` decorator that:
 
 **Worker Example**
 ```python
-from pynnex import nx_with_worker, nx_signal
+from pynnex import nx_with_worker, signal
 
 @with_worker
 class DataProcessor:

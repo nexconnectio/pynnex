@@ -17,17 +17,17 @@ import threading
 import logging
 import pytest
 import pytest_asyncio
-from pynnex import nx_with_signals, nx_signal, nx_slot
+from pynnex import with_signals, signal, slot
 
 # Only creating the logger without configuration
 logger = logging.getLogger(__name__)
 
 
-@nx_with_signals
+@with_signals
 class Sender:
     """Sender class"""
 
-    @nx_signal
+    @signal
     def value_changed(self, value):
         """Signal for value changes"""
 
@@ -36,7 +36,7 @@ class Sender:
         self.value_changed.emit(value)
 
 
-@nx_with_signals
+@with_signals
 class Receiver:
     """Receiver class"""
 
@@ -50,7 +50,7 @@ class Receiver:
         self.id = id(self)
         logger.info("Created Receiver[%d]", self.id)
 
-    @nx_slot
+    @slot
     async def on_value_changed(self, value: int):
         """Slot for value changes"""
         logger.info(
@@ -67,7 +67,7 @@ class Receiver:
             self.received_count,
         )
 
-    @nx_slot
+    @slot
     def on_value_changed_sync(self, value: int):
         """Sync slot for value changes"""
         logger.info(

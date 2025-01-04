@@ -12,8 +12,7 @@ Test cases for the worker-signal pattern.
 import asyncio
 import logging
 import pytest
-from pynnex.contrib.patterns.worker.decorators import nx_with_worker
-from pynnex import nx_signal, NxSignalConstants
+from pynnex import with_worker, signal, NxSignalConstants
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +36,7 @@ async def signal_worker():
         w.stop()
 
 
-@nx_with_worker
+@with_worker
 class SignalWorker:
     """Signal worker class"""
 
@@ -45,11 +44,11 @@ class SignalWorker:
         self.value = None
         super().__init__()
 
-    @nx_signal
+    @signal
     def worker_event(self):
         """Signal emitted when the worker event occurs"""
 
-    @nx_signal
+    @signal
     def value_changed(self):
         """Signal emitted when the value changes"""
 

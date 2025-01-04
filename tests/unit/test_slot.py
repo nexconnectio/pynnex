@@ -12,7 +12,7 @@ import threading
 import time
 import logging
 import pytest
-from pynnex import nx_with_signals, nx_slot
+from pynnex import with_signals, slot
 
 logger = logging.getLogger(__name__)
 
@@ -44,11 +44,11 @@ async def test_directly_call_slot(receiver):
 async def test_slot_exception(sender, receiver):
     """Test exception handling in slots"""
 
-    @nx_with_signals
+    @with_signals
     class ExceptionReceiver:
         """Receiver class for exception testing"""
 
-        @nx_slot
+        @slot
         async def on_value_changed(self, value):
             """Slot for value changed"""
             raise ValueError("Test exception")
@@ -69,7 +69,7 @@ async def test_slot_exception(sender, receiver):
 async def test_slot_thread_safety():
     """Test slot direct calls from different threads"""
 
-    @nx_with_signals
+    @with_signals
     class ThreadTestReceiver:
         """Receiver class for thread safety testing"""
 
@@ -79,7 +79,7 @@ async def test_slot_thread_safety():
             self.received_count = 0
             self.execution_thread = None
 
-        @nx_slot
+        @slot
         async def async_slot(self, value):
             """Async slot for thread safety testing"""
             self.execution_thread = threading.current_thread()
@@ -87,7 +87,7 @@ async def test_slot_thread_safety():
             self.received_value = value
             self.received_count += 1
 
-        @nx_slot
+        @slot
         def sync_slot(self, value):
             """Sync slot for thread safety testing"""
             self.execution_thread = threading.current_thread()

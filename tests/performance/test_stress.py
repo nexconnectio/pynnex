@@ -11,7 +11,7 @@ Test cases for stress testing.
 import asyncio
 import logging
 import pytest
-from pynnex import nx_with_signals, nx_signal, nx_slot, nx_graceful_shutdown
+from pynnex import with_signals, signal, slot, nx_graceful_shutdown
 
 logger = logging.getLogger(__name__)
 
@@ -35,19 +35,19 @@ async def graceful_shutdown():
 async def test_heavy_signal_load():
     """Test heavy signal load"""
 
-    @nx_with_signals
+    @with_signals
     class Sender:
         """Sender class"""
 
-        @nx_signal
+        @signal
         def signal(self):
             """Signal method"""
 
-    @nx_with_signals
+    @with_signals
     class Receiver:
         """Receiver class"""
 
-        @nx_slot
+        @slot
         async def slot(self):
             """Slot method"""
             await asyncio.sleep(0.001)

@@ -10,8 +10,7 @@ Test cases for the worker-queue pattern.
 import asyncio
 import logging
 import pytest
-from pynnex import nx_signal
-from pynnex.contrib.patterns.worker.decorators import nx_with_worker
+from pynnex import signal, with_worker
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +26,7 @@ async def queue_worker():
     w.stop()
 
 
-@nx_with_worker
+@with_worker
 class QueueWorker:
     """Queue worker class"""
 
@@ -147,7 +146,7 @@ async def test_mixed_signal_and_queue(queue_worker):
     """Test for simultaneous use of signals and task queue"""
 
     # Add a signal
-    @nx_signal
+    @signal
     def task_completed():
         pass
 
