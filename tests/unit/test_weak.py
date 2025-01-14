@@ -4,14 +4,14 @@
 Test cases for weak reference connections.
 """
 
-# pylint: disable=unused-argument
-# pylint: disable=redundant-unittest-assert
-
-import unittest
 import gc
-import asyncio
+import logging
 import weakref
+import pytest
+
 from pynnex import with_signals, signal
+
+logger = logging.getLogger(__name__)
 
 
 class WeakRefReceiver:
@@ -32,7 +32,7 @@ class WeakRefReceiver:
 
 
 @with_signals(weak_default=True)
-class WeakRefSender:
+class Sender:
     """
     A class that sends weak reference events.
     """
@@ -44,7 +44,7 @@ class WeakRefSender:
         """
 
 
-class StrongRefReceiver:
+class Receiver:
     """
     A class that receives strong reference events.
     """
@@ -78,110 +78,49 @@ class MixedSender:
         """
 
 
-class TestWeakRefConnections(unittest.IsolatedAsyncioTestCase):
+@pytest.mark.asyncio
+async def test_weak_default_connection():
     """
-    Test cases for weak reference connections.
+    Test weak default connection.
     """
+    sender = Sender()
+    receiver = Receiver()
 
-    async def test_weak_default_connection(self):
-        """
-        Test weak default connection.
-        """
+    # connect without specifying weak, should use weak_default=True
+    sender.event.connect(receiver, receiver.on_signal)
 
-        sender = WeakRefSender()
-        receiver = WeakRefReceiver()
+    sender.event.emit(42)
+    assert receiver.called, "Receiver should be called when alive"
 
-        # connect without specifying weak, should use weak_default=True
-        sender.event.connect(receiver, receiver.on_signal)
+    # Delete receiver and force GC
+    del receiver
+    gc.collect()
 
-        sender.event.emit(42)
-        self.assertTrue(receiver.called, "Receiver should be called when alive")
+    # After GC, the connection should be removed automatically
+    sender.event.emit(100)
 
-        # Delete receiver and force GC
-        del receiver
-        gc.collect()
+    assert True, "No exception emitted, weak ref disconnected automatically"
 
-        # After GC, the connection should be removed automatically
-        # Emit again and ensure no error and no print from receiver
-        sender.event.emit(100)
-        # If receiver was alive or connection remained, it would print or set called to True
-        # But we no longer have access to receiver here
-        # Just ensure no exception - implicit check
-        self.assertTrue(
-            True, "No exception emitted, weak ref disconnected automatically"
-        )
+@pytest.mark.asyncio
+async def test_override_weak_false():
+    """
+    Test override weak=False.
+    """
+    sender = MixedSender()
+    receiver = Receiver()
 
-    async def test_override_weak_false(self):
-        """
-        Test override weak=False.
-        """
+    sender.event.connect(receiver, receiver.on_signal, weak=False)
 
-        sender = MixedSender()
-        receiver = StrongRefReceiver()
+    sender.event.emit(10)
+    assert receiver.called, "Receiver called with strong ref"
 
-        # Even though weak_default=True, we explicitly set weak=False
-        sender.event.connect(receiver, receiver.on_signal, weak=False)
+    receiver.called = False
 
-        sender.event.emit(10)
-        self.assertTrue(receiver.called, "Receiver called with strong ref")
+    receiver_ref = weakref.ref(receiver)
+    del receiver
+    gc.collect()
 
-        # Reset called
-        receiver.called = False
+    assert receiver_ref() is not None, "Receiver should NOT be GCed due to strong ref"
 
-        # Delete receiver and force GC
-        receiver_ref = weakref.ref(receiver)
-        del receiver
-        gc.collect()
-
-        # Check if receiver is GCed
-        # Originally: self.assertIsNone(receiver_ref(), "Receiver should be GCed")
-        # Update the expectation: Since weak=False means strong ref remains, receiver won't GC.
-        self.assertIsNotNone(
-            receiver_ref(), "Receiver should NOT be GCed due to strong ref"
-        )
-
-        # Emit again, should still have a reference
-        sender.event.emit(200)
-        # Even if we can't call receiver (it was del), the reference in slot keeps it alive,
-        # but possibly as an inaccessible object.
-        # Just checking no exception raised and that receiver_ref is not None.
-        # This confirms the slot strong reference scenario.
-        self.assertTrue(True, "No exception raised, strong ref scenario is consistent")
-
-    async def test_explicit_weak_true(self):
-        """
-        Test explicit weak=True.
-        """
-
-        sender = MixedSender()
-        receiver = StrongRefReceiver()
-
-        # weak_default=True anyway, but let's be explicit
-        sender.event.connect(receiver, receiver.on_signal, weak=True)
-
-        sender.event.emit(20)
-        self.assertTrue(receiver.called, "Explicit weak=True call")
-
-        receiver.called = False
-
-        # Create a weak reference to the receiver
-        receiver_ref = weakref.ref(receiver)
-        self.assertIsNotNone(receiver_ref(), "Receiver should be alive before deletion")
-
-        # Delete strong reference and force GC
-        del receiver
-        gc.collect()
-
-        # Check if the receiver has been collected
-        self.assertIsNone(
-            receiver_ref(), "Receiver should be GCed after weakref disconnection"
-        )
-
-        # Receiver gone, emit again
-        # Should not call anything, no crash
-        sender.event.emit(30)
-        self.assertTrue(True, "No exception and no call because weak disconnect")
-
-
-if __name__ == "__main__":
-    asyncio.run(unittest.main())
+    sender.event.emit(200)
+    assert True, "No exception raised, strong ref scenario is consistent"

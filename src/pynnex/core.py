@@ -21,12 +21,17 @@ from dataclasses import dataclass
 import functools
 import logging
 import weakref
+from weakref import WeakMethod
 import threading
+import time
 from typing import Callable, Optional
 from pynnex.utils import nx_log_and_raise_error
 
-logger = logging.getLogger(__name__)
-
+logger = logging.getLogger("pynnex")
+logger_signal = logging.getLogger("pynnex.signal")
+logger_slot   = logging.getLogger("pynnex.slot")
+logger_signal_trace = logging.getLogger("pynnex.signal.trace")
+logger_slot_trace = logging.getLogger("pynnex.slot.trace")
 
 class NxSignalConstants:
     """Constants for signal-slot communication."""
@@ -40,6 +45,11 @@ class NxSignalConstants:
 
 _nx_from_emit = contextvars.ContextVar(NxSignalConstants.FROM_EMIT, default=False)
 
+def _get_func_name(func):
+    """Get a clean function name for logging"""
+    if hasattr(func, '__name__'):
+        return func.__name__
+    return str(func)
 
 class NxConnectionType(Enum):
     """Connection type for signal-slot connections."""
@@ -84,26 +94,19 @@ class NxConnection:
         For standalone functions, return them directly.
         """
 
+        if self.is_weak and isinstance(self.slot_func, WeakMethod):
+            real_method = self.slot_func()
+            return real_method
+
         if not self.is_bound:
-            # standalone function
             return self.slot_func
 
         receiver = self.get_receiver()
-
         if receiver is None:
-            # weak ref is dead
             return None
 
-        # Restore bound method
-        if self.is_weak:
-            # slot_func is an unbound function, so reconstruct the bound method using __get__
-            return self.slot_func.__get__(receiver, type(receiver))
-
-        # For instance of strong reference, slot_func may be already bound method,
-        # or it may be bound method at connect time.
-        # In either case, it can be returned directly.
+        # bound + weak=False or bound + weak=True (already not a WeakMethod) case
         return self.slot_func
-
 
 def _wrap_standalone_function(func, is_coroutine):
     """Wrap standalone function"""
@@ -122,7 +125,7 @@ def _wrap_standalone_function(func, is_coroutine):
                     logger,
                     RuntimeError,
                     (
-                        "[NxSignal][_wrap_standalone_function] No running event loop found. "
+                        "No running event loop found. "
                         "A running loop is required for coroutine slots."
                     ),
                 )
@@ -139,19 +142,11 @@ def _determine_connection_type(conn_type, receiver, owner, is_coro_slot):
     """
     actual_conn_type = conn_type
 
-    logger.debug(
-        "[NxSignal][_determine_connection_type] conn_type=%s receiver=%s owner=%s is_coro_slot=%s",
-        conn_type,
-        receiver,
-        owner,
-        is_coro_slot,
-    )
-
     if conn_type == NxConnectionType.AUTO_CONNECTION:
         if is_coro_slot:
             actual_conn_type = NxConnectionType.QUEUED_CONNECTION
             logger.debug(
-                "[NxSignal][_determine_connection_type] actual_conn_type=%s reason=is_coro_slot",
+                "Connection determined: type=%s, reason=is_coro_slot_and_has_receiver",
                 actual_conn_type,
             )
         else:
@@ -173,19 +168,19 @@ def _determine_connection_type(conn_type, receiver, owner, is_coro_slot):
                 if receiver._nx_affinity == owner._nx_affinity:
                     actual_conn_type = NxConnectionType.DIRECT_CONNECTION
                     logger.debug(
-                        "[NxSignal][_determine_connection_type] actual_conn_type=%s reason=same_thread",
+                        "Connection determined: type=%s, reason=same_thread",
                         actual_conn_type,
                     )
                 else:
                     actual_conn_type = NxConnectionType.QUEUED_CONNECTION
                     logger.debug(
-                        "[NxSignal][_determine_connection_type] actual_conn_type=%s reason=different_thread",
+                        "Connection determined: type=%s, reason=different_thread",
                         actual_conn_type,
                     )
             else:
                 actual_conn_type = NxConnectionType.DIRECT_CONNECTION
                 logger.debug(
-                    "[NxSignal][_determine_connection_type] actual_conn_type=%s reason=no_receiver or invalid thread or affinity "
+                    "Connection determined: type=%s, reason=no_receiver or invalid thread or affinity "
                     "is_receiver_valid=%s has_thread=%s has_affinity=%s has_owner_thread=%s has_owner_affinity=%s",
                     actual_conn_type,
                     is_receiver_valid,
@@ -276,11 +271,10 @@ class NxSignal:
         signal.connect(receiver, receiver.on_event, weak=True)
         """
 
-        logger.debug(
-            "[NxSignal][connect][START] class=%s receiver_or_slot=%s slot=%s",
+        logger.debug("Signal connection: class=%s, receiver=%s, slot=%s",
             self.__class__.__name__,
-            receiver_or_slot,
-            slot,
+            getattr(receiver_or_slot, '__name__', str(receiver_or_slot)),
+            getattr(slot, '__name__', str(slot))
         )
 
         if weak is None and self.owner is not None:
@@ -291,7 +285,7 @@ class NxSignal:
                 nx_log_and_raise_error(
                     logger,
                     TypeError,
-                    "[NxSignal][connect] receiver_or_slot must be callable.",
+                    "receiver_or_slot must be callable.",
                 )
 
             receiver = None
@@ -319,12 +313,12 @@ class NxSignal:
                 nx_log_and_raise_error(
                     logger,
                     AttributeError,
-                    "[NxSignal][connect] Receiver cannot be None.",
+                    "Receiver cannot be None.",
                 )
 
             if not callable(slot):
                 nx_log_and_raise_error(
-                    logger, TypeError, "[NxSignal][connect] Slot must be callable."
+                    logger, TypeError, "Slot must be callable."
                 )
 
             receiver = receiver_or_slot
@@ -342,28 +336,27 @@ class NxSignal:
             nx_log_and_raise_error(logger, ValueError, "Invalid connection type.")
 
         is_bound = False
+        bound_self = getattr(slot, "__self__", None)
 
-        if hasattr(slot, "__self__") and slot.__self__ is not None:
-            # It's a bound method
-            slot_instance = slot.__self__
-            slot_func = slot.__func__
+        if bound_self is not None:
             is_bound = True
 
             if weak and receiver is not None:
-                receiver_ref = weakref.ref(slot_instance, self._cleanup_on_ref_dead)
+                wm = WeakMethod(slot)
+                receiver_ref = weakref.ref(bound_self, self._cleanup_on_ref_dead)
                 conn = NxConnection(
                     receiver_ref,
-                    slot_func,
+                    wm,
                     conn_type,
                     is_coro_slot,
-                    is_bound,
-                    True,
-                    one_shot,
+                    is_bound=True,
+                    is_weak=True,
+                    is_one_shot=one_shot,
                 )
             else:
                 # strong ref
                 conn = NxConnection(
-                    slot_instance,
+                    bound_self,
                     slot,
                     conn_type,
                     is_coro_slot,
@@ -374,12 +367,15 @@ class NxSignal:
         else:
             # standalone function or lambda
             # weak not applied to function itself, since no receiver
-            is_bound = False
             conn = NxConnection(
-                None, slot, conn_type, is_coro_slot, is_bound, False, one_shot
+                None,
+                slot,
+                conn_type,
+                is_coro_slot,
+                is_bound=False,
+                is_weak=False,
+                is_one_shot=one_shot,
             )
-
-        logger.debug("[NxSignal][connect][END] conn=%s", conn)
 
         with self.connections_lock:
             self.connections.append(conn)
@@ -387,12 +383,25 @@ class NxSignal:
     def _cleanup_on_ref_dead(self, ref):
         """Cleanup connections on weak reference death."""
 
+        logger.info("Cleaning up dead reference: %s", ref)
+
         # ref is a weak reference to the receiver
         # Remove connections associated with the dead receiver
         with self.connections_lock:
+            before_count = len(self.connections)
+
             self.connections = [
                 conn for conn in self.connections if conn.receiver_ref is not ref
             ]
+
+            after_count = len(self.connections)
+
+            logger.info(
+                "Removed %d connections (before: %d, after: %d)",
+                before_count - after_count,
+                before_count,
+                after_count
+            )
 
     def disconnect(self, receiver: object = None, slot: Callable = None) -> int:
         """
@@ -438,59 +447,54 @@ class NxSignal:
 
         with self.connections_lock:
             if receiver is None and slot is None:
-                # No receiver or slot specified, remove all connections.
                 count = len(self.connections)
                 self.connections.clear()
-
                 return count
 
             original_count = len(self.connections)
             new_connections = []
 
-            logger.debug(
-                "[NxSignal][disconnect][START] receiver: %s slot: %s original_count: %s",
-                receiver,
-                slot,
-                original_count,
-            )
-
-            # In case slot is a bound method, convert it to an unbound function.
-            slot_unbound = _extract_unbound_function(slot)
+            # When disconnecting, if the slot_func is a WeakMethod, it must also be processed,
+            # so real_method is obtained and compared.
+            slot_unbound = _extract_unbound_function(slot) if slot else None
 
             for conn in self.connections:
-                # If the connection does not reference a receiver (standalone function)
-                # and a slot is specified, check if the connected func_or_slot matches the given slot.
-                receiver_match = receiver is None or conn.get_receiver() == receiver
-                slot_match = (
-                    slot is None
-                    or conn.slot_func == slot_unbound
-                    or getattr(conn.slot_func, "__wrapped__", None) == slot_unbound
-                )
+                conn_receiver = conn.get_receiver()
 
+                # If receiver is None, accept unconditionally, otherwise compare conn_receiver == receiver
+                receiver_match = (receiver is None or conn_receiver == receiver)
+
+                # If slot is None, accept unconditionally, otherwise compare unboundfunc
+                if slot_unbound is None:
+                    slot_match = True
+                else:
+                    if isinstance(conn.slot_func, WeakMethod):
+                        # Get the actual method from WeakMethod
+                        real_method = conn.slot_func()
+
+                        if real_method is None:
+                            # The method has already disappeared -> consider it as slot_match (can be disconnected)
+                            slot_match = True
+                        else:
+                            slot_match = (
+                                _extract_unbound_function(real_method) == slot_unbound
+                                or getattr(real_method, "__wrapped__", None) == slot_unbound
+                            )
+                    else:
+                        # General function or bound method
+                        slot_match = (
+                            _extract_unbound_function(conn.slot_func) == slot_unbound
+                            or getattr(conn.slot_func, "__wrapped__", None) == slot_unbound
+                        )
+
+                # Both True means this conn is a target for disconnection, otherwise keep
                 if receiver_match and slot_match:
-                    # remove this connection
-                    logger.debug(
-                        "[NxSignal][disconnect][MATCHED] func: %s receiver_match: %s slot_match: %s",
-                        conn.slot_func,
-                        receiver_match,
-                        slot_match,
-                    )
                     continue
 
-                # If the connection was not matched by the given criteria, keep it.
-                logger.debug(
-                    "[NxSignal][disconnect][NOT MATCHED] func: %s", conn.slot_func
-                )
-                new_connections.append((conn))
+                new_connections.append(conn)
 
             self.connections = new_connections
             disconnected = original_count - len(self.connections)
-
-            logger.debug(
-                "[NxSignal][disconnect][END] disconnected: %s",
-                disconnected,
-            )
-
             return disconnected
 
     def emit(self, *args, **kwargs):
@@ -523,7 +527,49 @@ class NxSignal:
         signal.emit(42, message="Hello")
         """
 
-        logger.debug("[NxSignal][emit][START]")
+        if logger.isEnabledFor(logging.DEBUG):
+            # Signal meta info
+            signal_name = getattr(self, "signal_name", "<anonymous>")
+            owner_class = type(self.owner).__name__ if self.owner else "<no_owner>"
+            thread_name = threading.current_thread().name
+            payload_repr = f"args={args}, kwargs={kwargs}"
+
+            logger.debug(
+                'Signal emit started: name=%s, owner=%s, thread=%s, payload=%s',
+                signal_name,
+                owner_class,
+                thread_name,
+                payload_repr
+            )
+
+            start_ts = time.monotonic()
+
+        if logger_signal_trace.isEnabledFor(logging.DEBUG):
+            connections_info = []
+            if hasattr(self, 'connections'):
+                for i, conn in enumerate(self.connections):
+                    connections_info.append(
+                        f"    #{i}: type={type(conn.receiver_ref)}, "
+                        f"alive={conn.get_receiver() is not None}, "
+                        f"slot={conn.slot_func}"
+                    )
+
+            trace_msg = (
+                "Signal Trace:\n"
+                f"  name: {getattr(self, 'signal_name', '<anonymous>')}\n"
+                f"  owner: {self.owner}\n"
+                f"  connections ({len(self.connections)}):\n"
+                "{}".format(
+                    '\n'.join(
+                        f"    #{i}: type={type(conn.receiver_ref)}, "
+                        f"alive={conn.get_receiver() is not None}, "
+                        f"slot={_get_func_name(conn.slot_func)}"
+                        for i, conn in enumerate(self.connections)
+                    ) if self.connections else '    none'
+                )
+            )
+
+            logger_signal_trace.debug(trace_msg)
 
         token = _nx_from_emit.set(True)
 
@@ -550,102 +596,7 @@ class NxSignal:
                     conn.conn_type, conn.get_receiver(), self.owner, conn.is_coro_slot
                 )
 
-                logger.debug(
-                    "[NxSignal][emit] slot=%s receiver=%s conn_type=%s",
-                    getattr(slot_to_call, "__name__", slot_to_call),
-                    conn.get_receiver(),
-                    actual_conn_type,
-                )
-
-                try:
-                    if actual_conn_type == NxConnectionType.DIRECT_CONNECTION:
-                        logger.debug("[NxSignal][emit][DIRECT] calling slot directly")
-                        result = slot_to_call(*args, **kwargs)
-                        logger.debug(
-                            "[NxSignal][emit][DIRECT] result=%s result_type=%s",
-                            result,
-                            type(result),
-                        )
-                    else:
-                        # Handle QUEUED CONNECTION
-                        receiver = conn.get_receiver()
-
-                        if receiver is not None:
-                            receiver_loop = getattr(
-                                receiver, NxSignalConstants.LOOP, None
-                            )
-                            receiver_thread = getattr(
-                                receiver, NxSignalConstants.THREAD, None
-                            )
-
-                            if not receiver_loop:
-                                logger.error(
-                                    "[NxSignal][emit][QUEUED] No event loop found for receiver. receiver=%s",
-                                    receiver,
-                                    stack_info=True,
-                                )
-                                continue
-                        else:
-                            try:
-                                receiver_loop = asyncio.get_running_loop()
-                            except RuntimeError:
-                                nx_log_and_raise_error(
-                                    logger,
-                                    RuntimeError,
-                                    "[NxSignal][emit][QUEUED] No running event loop found for queued connection.",
-                                )
-
-                            receiver_thread = None
-
-                        if not receiver_loop.is_running():
-                            logger.warning(
-                                "[NxSignal][emit][QUEUED] receiver loop not running. Signals may not be delivered. receiver=%s",
-                                receiver.__class__.__name__,
-                            )
-                            continue
-
-                        if receiver_thread and not receiver_thread.is_alive():
-                            logger.warning(
-                                "[NxSignal][emit][QUEUED] The receiver's thread is not alive. Signals may not be delivered. receiver=%s",
-                                receiver.__class__.__name__,
-                            )
-
-                        logger.debug(
-                            "[NxSignal][emit][QUEUED] slot=%s is_coroutine=%s",
-                            getattr(slot_to_call, "__name__", slot_to_call),
-                            conn.is_coro_slot,
-                        )
-
-                        def dispatch(
-                            is_coro_slot=conn.is_coro_slot,
-                            slot_to_call=slot_to_call,
-                        ):
-                            logger.debug(
-                                "[NxSignal][emit][QUEUED][dispatch] calling slot=%s",
-                                getattr(slot_to_call, "__name__", slot_to_call),
-                            )
-
-                            if is_coro_slot:
-                                returned = asyncio.create_task(
-                                    slot_to_call(*args, **kwargs)
-                                )
-                            else:
-                                returned = slot_to_call(*args, **kwargs)
-
-                            logger.debug(
-                                "[NxSignal][emit][QUEUED][dispatch] returned=%s type=%s",
-                                returned,
-                                type(returned),
-                            )
-
-                            return returned
-
-                        receiver_loop.call_soon_threadsafe(dispatch)
-
-                except Exception as e:
-                    logger.error(
-                        "[NxSignal][emit] error in emission: %s", e, exc_info=True
-                    )
+                self._invoke_slot(conn, slot_to_call, actual_conn_type, *args, **kwargs)
 
                 if conn.is_one_shot:
                     with self.connections_lock:
@@ -655,7 +606,159 @@ class NxSignal:
         finally:
             _nx_from_emit.reset(token)
 
-        logger.debug("[NxSignal][emit][END]")
+            if logger_signal.isEnabledFor(logging.DEBUG):
+                signal_name = getattr(self, "signal_name", "<anonymous>")
+                # pylint: disable=possibly-used-before-assignment
+                elapsed_ms = (time.monotonic() - start_ts) * 1000
+                # pylint: enable=possibly-used-before-assignment
+
+                if elapsed_ms > 0:
+                    logger.debug('Signal emit completed: name="%s", elapsed=%.2fms',
+                        signal_name, elapsed_ms)
+                else:
+                    logger.debug('Signal emit completed: name="%s"', signal_name)
+
+    def _invoke_slot(self, conn, slot_to_call, actual_conn_type, *args, **kwargs):
+        """Invoke the slot once."""
+
+        if logger_slot.isEnabledFor(logging.DEBUG):
+            signal_name = getattr(self, "signal_name", "<anonymous>")
+            slot_name = getattr(slot_to_call, "__name__", "<anonymous_slot>")
+            receiver_obj = conn.get_receiver()
+            receiver_class = type(receiver_obj).__name__ if receiver_obj else "<no_receiver>"
+
+        if logger_slot_trace.isEnabledFor(logging.DEBUG):
+            trace_msg = (
+                f"Slot Invoke Trace:\n"
+                f"  signal: {getattr(self, 'signal_name', '<anonymous>')}\n"
+                f"  connection details:\n"
+                f"    receiver_ref type: {type(conn.receiver_ref)}\n"
+                f"    receiver alive: {conn.get_receiver() is not None}\n"
+                f"    slot_func: {_get_func_name(conn.slot_func)}\n"
+                f"    is_weak: {conn.is_weak}\n"
+                f"  slot to call:\n"
+                f"    type: {type(slot_to_call)}\n"
+                f"    name: {_get_func_name(slot_to_call)}\n"
+                f"    qualname: {getattr(slot_to_call, '__qualname__', '<unknown>')}\n"
+                f"    module: {getattr(slot_to_call, '__module__', '<unknown>')}"
+            )
+
+            logger_slot_trace.debug(trace_msg)
+
+        try:
+            if actual_conn_type == NxConnectionType.DIRECT_CONNECTION:
+                if logger.isEnabledFor(logging.DEBUG):
+                    logger.debug("Calling slot directly")
+
+                if logger_slot.isEnabledFor(logging.DEBUG):
+                    start_ts = time.monotonic()
+                    logger.debug(
+                        'Slot invoke started: "%s" -> %s.%s, connection=direct',
+                        signal_name,
+                        receiver_class,
+                        slot_name
+                    )
+
+                result = slot_to_call(*args, **kwargs)
+
+                if logger_slot.isEnabledFor(logging.DEBUG):
+                    exec_ms = (time.monotonic() - start_ts) * 1000
+                    logger.debug(
+                        'Slot invoke completed: "%s" -> %s.%s, connection=direct, exec_time=%.2fms, result=%s',
+                        signal_name,
+                        receiver_class,
+                        slot_name,
+                        exec_ms,
+                        result
+                    )
+
+                if logger.isEnabledFor(logging.DEBUG):
+                    logger.debug(
+                        "result=%s result_type=%s",
+                        result,
+                        type(result),
+                    )
+            else:
+                # Handle QUEUED CONNECTION
+                queued_at = time.monotonic()
+
+                receiver = conn.get_receiver()
+
+                if logger.isEnabledFor(logging.DEBUG):
+                    logger.debug('Scheduling slot: name=%s, receiver=%s, connection=%s, is_coro=%s',
+                        slot_to_call.__name__, getattr(slot_to_call, '__self__', '<no_receiver>'),
+                        actual_conn_type, conn.is_coro_slot)
+
+
+                if receiver is not None:
+                    receiver_loop = getattr(receiver, NxSignalConstants.LOOP, None)
+                    receiver_thread = getattr(receiver, NxSignalConstants.THREAD, None)
+
+                    if not receiver_loop:
+                        logger.error(
+                            "No event loop found for receiver. receiver=%s",
+                            receiver,
+                            stack_info=True,
+                        )
+                        return
+                else:
+                    try:
+                        receiver_loop = asyncio.get_running_loop()
+                    except RuntimeError:
+                        nx_log_and_raise_error(
+                            logger,
+                            RuntimeError,
+                            "No running event loop found for queued connection.",
+                        )
+
+                    receiver_thread = None
+
+                if not receiver_loop.is_running():
+                    logger.warning(
+                        "receiver loop not running. Signals may not be delivered. receiver=%s",
+                        receiver.__class__.__name__,
+                    )
+                    return
+
+                if receiver_thread and not receiver_thread.is_alive():
+                    logger.warning(
+                        "The receiver's thread is not alive. Signals may not be delivered. receiver=%s",
+                        receiver.__class__.__name__,
+                    )
+
+                def dispatch(
+                    is_coro_slot=conn.is_coro_slot,
+                    slot_to_call=slot_to_call,
+                ):
+                    if is_coro_slot:
+                        returned = asyncio.create_task(
+                            slot_to_call(*args, **kwargs)
+                        )
+                    else:
+                        returned = slot_to_call(*args, **kwargs)
+
+                    if logger_slot.isEnabledFor(logging.DEBUG):
+                        wait_ms = (time.monotonic() - queued_at) * 1000
+                        logger.debug(
+                            'Slot invoke started: "%s" -> %s.%s, connection=queued, queue_wait=%.2fms',
+                            signal_name,
+                            receiver_class,
+                            slot_name,
+                            wait_ms
+                        )
+
+                    if logger.isEnabledFor(logging.DEBUG):
+                        logger.debug('Task created: id=%s, slot="%s" -> %s.%s',
+                            returned.get_name(), signal_name, receiver_class, slot_name)
+
+                    return returned
+
+                receiver_loop.call_soon_threadsafe(dispatch)
+
+        except Exception as e:
+            logger.error(
+                "error in emission: %s", e, exc_info=True
+            )
 
 
 # property is used for lazy initialization of the signal.
@@ -678,9 +781,9 @@ class NxSignalProperty(property):
 
 def nx_signal(func):
     """
-    Decorator that defines a signal attribute within a class decorated by `@nx_with_signals`.
+    Decorator that defines a signal attribute within a class decorated by @nx_with_signals.
     The decorated function name is used as the signal name, and it provides a lazy-initialized
-    `NxSignal` instance.
+    NxSignal instance.
 
     Parameters
     ----------
@@ -692,20 +795,21 @@ def nx_signal(func):
     Returns
     -------
     NxSignalProperty
-        A property-like descriptor that, when accessed, returns the underlying `NxSignal` object.
+        A property-like descriptor that, when accessed, returns the underlying NxSignal object.
 
     Notes
     -----
     - A typical usage looks like:
-      ```python
+      
+python
       @nx_with_signals
       class MyClass:
           @nx_signal
           def some_event(self):
               # The body here is never called at runtime.
               pass
-      ```
-    - You can then emit the signal via `self.some_event.emit(...)`.
+
+    - You can then emit the signal via self.some_event.emit(...).
     - The actual signal object is created and cached when first accessed.
 
     See Also
@@ -732,7 +836,7 @@ def nx_slot(func):
     Decorator that marks a method as a 'slot' for PynneX. Slots can be either synchronous
     or asynchronous, and PynneX automatically handles cross-thread invocation.
 
-    If this decorated method is called directly (i.e., not via a signal’s `emit()`)
+    If this decorated method is called directly (i.e., not via a signal’s emit())
     from a different thread than the slot’s home thread/event loop, PynneX also ensures
     that the call is dispatched (queued) correctly to the slot's thread. This guarantees
     consistent and thread-safe execution whether the slot is triggered by a signal emit
@@ -754,10 +858,10 @@ def nx_slot(func):
     -----
     - If the slot is synchronous and the emitter (or caller) is in another thread,
       PynneX queues a function call to the slot’s thread/event loop.
-    - If the slot is asynchronous (`async def`), PynneX ensures that the coroutine
+    - If the slot is asynchronous (async def), PynneX ensures that the coroutine
       is scheduled on the correct event loop.
     - The threading affinity and event loop references are automatically assigned
-      by `@nx_with_signals` or `@nx_with_worker` when the class instance is created.
+      by @nx_with_signals or @nx_with_worker when the class instance is created.
 
     Examples
     --------
@@ -787,7 +891,7 @@ def nx_slot(func):
                 nx_log_and_raise_error(
                     logger,
                     RuntimeError,
-                    "[NxSignal][nx_slot][wrap] No running loop in coroutine.",
+                    "No running loop in coroutine.",
                 )
 
             if not hasattr(self, NxSignalConstants.THREAD):
@@ -800,7 +904,7 @@ def nx_slot(func):
                     nx_log_and_raise_error(
                         logger,
                         RuntimeError,
-                        "[NxSignal][nx_slot][wrap] No running event loop found.",
+                        "No running event loop found.",
                     )
 
             if not _nx_from_emit.get():
@@ -831,7 +935,7 @@ def nx_slot(func):
                     nx_log_and_raise_error(
                         logger,
                         RuntimeError,
-                        "[nx_slot][wrap] No running event loop found.",
+                        "No running event loop found.",
                     )
 
             if not _nx_from_emit.get():
@@ -874,9 +978,9 @@ def nx_with_signals(cls=None, *, loop=None, weak_default=True):
         PynneX attempts to retrieve the current running loop. If none is found, it raises
         an error or creates a new event loop in some contexts.
     weak_default : bool, optional
-        Determines the default value for `weak` connections on signals from instances of
-        this class. If `True`, any signal `connect` call without a specified `weak` argument
-        will store a weak reference to the receiver. Defaults to `True`.
+        Determines the default value for weak connections on signals from instances of
+        this class. If True, any signal connect call without a specified weak argument
+        will store a weak reference to the receiver. Defaults to True.
 
     Returns
     -------
@@ -885,19 +989,20 @@ def nx_with_signals(cls=None, *, loop=None, weak_default=True):
 
     Notes
     -----
-    - This decorator modifies the class’s `__init__` method to automatically assign
-      `_nx_thread`, `_nx_loop`, `_nx_affinity`, and `_nx_weak_default`.
+    - This decorator modifies the class’s __init__ method to automatically assign
+      _nx_thread, _nx_loop, _nx_affinity, and _nx_weak_default.
     - Typically, you’ll write:
-      ```python
+      
+python
       @nx_with_signals
       class MyClass:
           @nx_signal
           def some_event(self):
               pass
-      ```
-      Then create an instance: `obj = MyClass()`, and connect signals as needed.
-    - The `weak_default` argument can be overridden on a per-connection basis
-      by specifying `weak=True` or `weak=False` in `connect`.
+
+      Then create an instance: obj = MyClass(), and connect signals as needed.
+    - The weak_default argument can be overridden on a per-connection basis
+      by specifying weak=True or weak=False in connect.
 
     Example
     -------
@@ -923,7 +1028,7 @@ def nx_with_signals(cls=None, *, loop=None, weak_default=True):
                     nx_log_and_raise_error(
                         logger,
                         RuntimeError,
-                        "[nx_with_signals][wrap][__init__] No running event loop found.",
+                        "No running event loop found.",
                     )
 
             # Set thread and event loop

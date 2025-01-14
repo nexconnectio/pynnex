@@ -115,7 +115,7 @@ class NxProperty(property):
             raise AttributeError("can't set attribute")
 
         # DEBUG: Thread safety verification logs
-        # logger.debug(f"[PROPERTY] thread: {obj._nx_thread} current thread: {threading.current_thread()} loop: {obj._nx_loop}")
+        # logger.debug(f"thread: {obj._nx_thread} current thread: {threading.current_thread()} loop: {obj._nx_loop}")
 
         if (
             hasattr(obj, NxSignalConstants.THREAD)

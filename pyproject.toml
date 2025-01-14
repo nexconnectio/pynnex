@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pynnex"
-version = "1.0.2"
+version = "1.0.3"
 description = "A Python Signal-Slot library"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -61,6 +61,7 @@ disable = [
     "protected-access",
     "too-few-public-methods",
     "too-many-statements",
+    "too-many-lines",
     "broad-exception-caught"
 ]
 max-line-length = 140

@@ -135,7 +135,7 @@ def nx_with_worker(cls):
         async def run(self, *args, **kwargs):
             """Run the worker."""
 
-            logger.debug("[WorkerClass][run] calling super")
+            logger.debug("Calling super")
 
             super_run = getattr(super(), _WorkerConstants.RUN, None)
             is_super_run_called = False
@@ -144,20 +144,20 @@ def nx_with_worker(cls):
                 sig = inspect.signature(super_run)
 
                 try:
-                    logger.debug("[WorkerClass][run] sig: %s", sig)
+                    logger.debug("sig: %s", sig)
                     sig.bind(self, *args, **kwargs)
                     await super_run(*args, **kwargs)
-                    logger.debug("[WorkerClass][run] super_run called")
+                    logger.debug("super_run called")
                     is_super_run_called = True
                 except TypeError:
                     logger.warning(
-                        "[WorkerClass][run] Parent run() signature mismatch. "
+                        "Parent run() signature mismatch. "
                         "Expected: async def run(*args, **kwargs) but got %s",
                         sig,
                     )
 
             if not is_super_run_called:
-                logger.debug("[WorkerClass][run] super_run not called, starting queue")
+                logger.debug("super_run not called, starting queue")
                 await self.start_queue()
 
         async def _process_queue(self):
@@ -170,7 +170,7 @@ def nx_with_worker(cls):
                     await coro
                 except Exception as e:
                     logger.error(
-                        "[WorkerClass][_process_queue] Task failed: %s",
+                        "Task failed: %s",
                         e,
                         exc_info=True,
                     )
@@ -209,7 +209,7 @@ def nx_with_worker(cls):
 
             if not asyncio.iscoroutine(coro):
                 logger.error(
-                    "[WorkerClass][queue_task] Task must be a coroutine object: %s",
+                    "Task must be a coroutine object: %s",
                     coro,
                 )
                 return
@@ -242,7 +242,7 @@ def nx_with_worker(cls):
 
             if run_coro is not None and not asyncio.iscoroutine(run_coro):
                 logger.error(
-                    "[WorkerClass][start][run_coro] must be a coroutine object: %s",
+                    "Must be a coroutine object: %s",
                     run_coro,
                 )
                 return
@@ -286,14 +286,14 @@ def nx_with_worker(cls):
                                 await self._nx_process_queue_task
                             except asyncio.CancelledError:
                                 logger.debug(
-                                    "[WorkerClass][start][thread_main] _process_queue_task cancelled"
+                                    "_process_queue_task cancelled"
                                 )
 
                     finally:
                         self.stopped.emit()
                         # Give the event loop a chance to emit the signal
                         await asyncio.sleep(0)
-                        logger.debug("[WorkerClass][start][thread_main] emit stopped")
+                        logger.debug("emit stopped")
 
                 with self._nx_lifecycle_lock:
                     loop = self._nx_loop
@@ -324,7 +324,7 @@ def nx_with_worker(cls):
             - Thread is joined with a 2-second timeout.
             """
 
-            logger.debug("[WorkerClass][stop] Starting worker shutdown")
+            logger.debug("Starting worker shutdown")
 
             # Acquire lock to safely access _nx_loop and _nx_thread
             with self._nx_lifecycle_lock:
@@ -332,11 +332,11 @@ def nx_with_worker(cls):
                 thread = self._nx_thread
 
             if loop and thread and thread.is_alive():
-                logger.debug("[WorkerClass][stop] Setting stop flag")
+                logger.debug("Setting stop flag")
                 loop.call_soon_threadsafe(self._nx_stopping.set)
-                logger.debug("[WorkerClass][stop] Waiting for thread to join")
+                logger.debug("Waiting for thread to join")
                 thread.join(timeout=2)
-                logger.debug("[WorkerClass][stop] Thread joined")
+                logger.debug("Thread joined")
 
                 with self._nx_lifecycle_lock:
                     self._nx_loop = None
@@ -367,7 +367,7 @@ def nx_with_worker(cls):
             with self._nx_lifecycle_lock:
                 if not self._nx_thread or not self._nx_loop:
                     raise RuntimeError(
-                        "[WorkerClass][move_to_thread] Worker thread not started. "
+                        "Worker thread not started. "
                         "Cannot move target to this thread."
                     )
 
@@ -377,7 +377,7 @@ def nx_with_worker(cls):
                 target, NxSignalConstants.LOOP
             ):
                 raise TypeError(
-                    "[WorkerClass][move_to_thread] Target is not compatible. "
+                    "Target is not compatible. "
                     "Ensure it is decorated with nx_with_signals or nx_with_worker."
                 )
 
@@ -387,7 +387,7 @@ def nx_with_worker(cls):
             target._nx_affinity = self._nx_affinity
 
             logger.debug(
-                "[WorkerClass][move_to_thread] Moved %s to worker thread=%s with affinity=%s",
+                "Moved %s to worker thread=%s with affinity=%s",
                 target,
                 self._nx_thread,
                 self._nx_affinity,
