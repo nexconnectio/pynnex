@@ -26,6 +26,7 @@ logger_setup("pynnex")
 logger_setup("stock_core")
 logger = logger_setup(__name__)
 
+
 @with_signals
 class StockMonitorCLI:
     """
