@@ -224,6 +224,7 @@ async def test_direct_async_function_connection(sender):
 
     async def async_collector(value):
         """Slot for value changed"""
+        logger.info("async_collector called")
         await asyncio.sleep(0.1)
         received_values.append(value)
 

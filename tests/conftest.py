@@ -27,6 +27,9 @@ logger = logging.getLogger(__name__)
 class Sender:
     """Sender class"""
 
+    def __str__(self):
+        return f"Sender(id={id(self)})"
+
     @signal
     def value_changed(self, value):
         """Signal for value changes"""
@@ -42,13 +45,16 @@ class Receiver:
 
     def __init__(self):
         super().__init__()
+        self.id = id(self)
 
         logger.debug("[Receiver][__init__] self=%s", self)
 
         self.received_value = None
         self.received_count = 0
-        self.id = id(self)
         logger.info("Created Receiver[%d]", self.id)
+
+    def __str__(self):
+        return f"Receiver(id={self.id})"
 
     @slot
     async def on_value_changed(self, value: int):
@@ -105,10 +111,8 @@ def setup_logging():
 
     # Setting to WARNING level by default
     default_level = logging.WARNING
-    # default_level = logging.DEBUG
 
     # Can enable DEBUG mode via environment variable
-
     if os.environ.get("PYNNEX_DEBUG"):
         default_level = logging.DEBUG
 
@@ -125,7 +129,8 @@ def setup_logging():
 
     # Setting formatter
     formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s", datefmt="%H:%M:%S"
+        "%(asctime)s - %(name)s - [%(filename)s:%(funcName)s] - %(levelname)s - %(message)s",
+        datefmt="%H:%M:%S",
     )
     console_handler.setFormatter(formatter)
     root.addHandler(console_handler)
@@ -133,3 +138,19 @@ def setup_logging():
     # Setting package logger levels
     logging.getLogger("pynnex").setLevel(default_level)
     logging.getLogger("tests").setLevel(default_level)
+
+    # Disable trace logging
+    logging.getLogger("pynnex.signal").setLevel(logging.WARNING)
+    logging.getLogger("pynnex.slot").setLevel(logging.WARNING)
+    logging.getLogger("pynnex.signal.trace").setLevel(logging.WARNING)
+    logging.getLogger("pynnex.slot.trace").setLevel(logging.WARNING)
+
+    # For debugging
+    # root.setLevel(logging.DEBUG)
+    # console_handler.setLevel(logging.DEBUG)
+    # logging.getLogger("pynnex").setLevel(logging.DEBUG)
+    # logging.getLogger("tests").setLevel(logging.DEBUG)
+    # logging.getLogger("pynnex.signal").setLevel(logging.DEBUG)
+    # logging.getLogger("pynnex.slot").setLevel(logging.DEBUG)
+    # logging.getLogger("pynnex.signal.trace").setLevel(logging.DEBUG)
+    # logging.getLogger("pynnex.slot.trace").setLevel(logging.DEBUG)
