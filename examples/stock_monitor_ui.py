@@ -25,12 +25,22 @@ from kivy.uix.textinput import TextInput
 from kivy.uix.widget import Widget
 from kivy.core.window import Window
 from kivy.clock import Clock
+import logging
 
 from utils import logger_setup
 from stock_core import StockPrice, StockService, StockProcessor, StockViewModel
 from pynnex import with_signals, slot
 
 logger = logger_setup(__name__)
+logger_setup("pynnex")
+logger_setup("stock_core")
+
+logger.info(
+    "pynnex.getEffectiveLevel: %s", logging.getLogger("pynnex").getEffectiveLevel()
+)
+logger.info("pynnex.level: %s", logging.getLogger("pynnex").level)
+logger.info("root.level: %s", logging.getLogger().level)
+
 
 @with_signals
 class StockView(BoxLayout):

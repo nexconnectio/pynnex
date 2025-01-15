@@ -703,9 +703,10 @@ class NxSignal:
                         )
 
                     if logger.isEnabledFor(logging.DEBUG):
+                        task_id = getattr(returned, "get_name", lambda: "<no_task>")()
                         logger.debug(
                             'Task created: id=%s, slot="%s" -> %s.%s',
-                            returned.get_name(),
+                            task_id,
                             signal_name,
                             receiver_class,
                             slot_name,
