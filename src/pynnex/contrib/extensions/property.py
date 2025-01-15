@@ -20,66 +20,32 @@ logger = logging.getLogger(__name__)
 
 class NxProperty(property):
     """
-    A thread-safe property decorator for classes decorated with `@nx_with_signals`
-    or `@nx_with_worker`.
-
-    This property ensures that all reads (getter) and writes (setter) occur on the
-    object's designated event loop, maintaining thread-safety across different threads.
-
-    If the property is accessed from a different thread than the object's thread affinity:
-    - The operation is automatically dispatched (queued) onto the object's event loop
-      via `asyncio.run_coroutine_threadsafe`.
-    - This prevents race conditions that might otherwise occur if multiple threads
-      tried to read/write the same attribute.
+    Thread-safe property decorator for signal-enabled classes.
 
     Parameters
     ----------
     fget : callable, optional
-        The getter function for the property.
+        Getter function.
     fset : callable, optional
-        The setter function for the property.
+        Setter function.
     fdel : callable, optional
-        The deleter function for the property (not commonly used).
+        Deleter function.
     doc : str, optional
-        Docstring for this property.
+        Property docstring.
     notify : NxSignal, optional
-        A signal to emit when the property value changes. If provided, the signal is
-        triggered after a successful write operation, and only if the new value is
-        different from the old value.
+        Signal to emit on value change.
 
     Notes
     -----
-    - The property’s underlying storage is typically `_private_name` on the instance,
-      inferred from the property name (e.g. `value` -> `self._value`).
-    - If `notify` is set, `signal.emit(new_value)` is called whenever the property changes.
-    - Reading or writing this property from its "home" thread is done synchronously;
-      from any other thread, PynneX automatically queues the operation in the
-      object's event loop.
-
-    Example
-    -------
-    @nx_with_signals
-    class Model:
-        @nx_signal
-        def value_changed(self):
-            pass
-
-        @nx_property(notify=value_changed)
-        def value(self):
-            return self._value
-
-        @value.setter
-        def value(self, new_val):
-            self._value = new_val
-
-    # Usage:
-    model = Model()
-    model.value = 10     # If called from a different thread, it’s queued to model's loop
-    current_val = model.value  # Also thread-safe read
+    - Ensures thread-safe access via event loop
+    - Automatically queues operations across threads
+    - Emits notify signal on value changes
+    - Uses '_private_name' for storage
 
     See Also
     --------
-    nx_with_signals : Decorates a class to enable signal/slot features and thread affinity.
+    nx_with_signals : Class decorator for signal/slot features
+    nx_property : Property decorator factory
     """
 
     def __init__(self, fget=None, fset=None, fdel=None, doc=None, notify=None):
@@ -174,40 +140,28 @@ class NxProperty(property):
 
 def nx_property(notify=None):
     """
-    Decorator to create a NxProperty-based thread-safe property.
+    Decorator to create a thread-safe property.
 
     Parameters
     ----------
     notify : NxSignal, optional
-        If provided, this signal is automatically emitted when the property's value changes.
+        Signal to emit on value change.
 
     Returns
     -------
-    function
-        A decorator that converts a normal getter function into a NxProperty-based property.
+    NxProperty
+        Thread-safe property descriptor.
 
-    Example
-    -------
-    @nx_with_signals
-    class Example:
-        def __init__(self):
-            super().__init__()
-            self._data = None
+    Notes
+    -----
+    - Ensures thread-safe access via event loop
+    - Emits notify signal when value changes
+    - Must be used within @nx_with_signals class
 
-        @nx_signal
-        def updated(self):
-            pass
-
-        @nx_property(notify=updated)
-        def data(self):
-            return self._data
-
-        @data.setter
-        def data(self, value):
-            self._data = value
-
-    e = Example()
-    e.data = 42  # Thread-safe property set; emits 'updated' signal on change
+    See Also
+    --------
+    NxProperty : Base property implementation
+    nx_with_signals : Required class decorator
     """
 
     def decorator(func):

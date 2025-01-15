@@ -29,68 +29,31 @@ class _WorkerConstants:
 
 def nx_with_worker(cls):
     """
-    Class decorator that adds a worker pattern to the decorated class, allowing it
-    to run in a dedicated thread with its own asyncio event loop. This is especially
-    useful for background processing or offloading tasks that should not block the
-    main thread.
+    Class decorator that adds worker thread functionality.
 
-    Features
-    --------
-    - **Dedicated Thread & Event Loop**: The decorated class, once started, runs in
-      a new thread with its own event loop.
-    - **Signal/Slot Support**: The worker class can define signals (with `@nx_signal`)
-      and slots (`@nx_slot`), enabling event-driven communication.
-    - **Task Queue**: A built-in asyncio `Queue` is provided for scheduling coroutines
-      in the worker thread via `queue_task(coro)`.
-    - **Lifecycle Signals**: Automatically emits `started` and `stopped` signals,
-      indicating when the worker thread is up and when it has fully terminated.
-    - **Lifecycle Management**: Methods like `start(...)`, `stop()`, and `move_to_thread(...)`
-      help manage the worker thread's lifecycle and move other `@nx_with_signals` objects
-      into this worker thread.
+    Parameters
+    ----------
+    cls : class
+        Class to be decorated.
 
-    Usage
-    -----
-    1. Decorate the class with `@nx_with_worker`.
-    2. Optionally implement an async `run(*args, **kwargs)` method to control
-       the worker's main logic. This method is run in the worker thread.
-    3. Call `start(...)` to launch the thread and event loop.
-    4. Use `queue_task(...)` to schedule coroutines on the worker's event loop.
-
-    Example
+    Returns
     -------
-    @nx_with_worker
-    class BackgroundWorker:
-        @nx_signal
-        def started(self):
-            pass
+    class
+        Decorated class with worker thread support.
 
-        @nx_signal
-        def stopped(self):
-            pass
-
-        @nx_signal
-        def result_ready(self):
-            pass
-
-        async def run(self, config=None):
-            print("Worker started with config:", config)
-            # Wait until stop is requested
-            await self.wait_for_stop()
-            print("Worker finishing...")
-
-        async def do_work(self, data):
-            await asyncio.sleep(2)
-            self.result_ready.emit(data * 2)
-
-    worker = BackgroundWorker()
-    worker.start(config={'threads': 4})
-    worker.queue_task(worker.do_work(10))
-    worker.stop()
+    Notes
+    -----
+    - Creates dedicated thread with event loop
+    - Provides task queue for async operations
+    - Supports signal/slot communication
+    - Emits started/stopped signals
+    - Manages worker lifecycle via start/stop methods
 
     See Also
     --------
-    nx_slot : Decorates methods as thread-safe or async slots.
-    nx_signal : Decorates functions to define signals.
+    nx_with_signals : Base decorator for signal/slot features
+    nx_signal : Signal decorator
+    nx_slot : Slot decorator
     """
 
     class WorkerClass(cls):
@@ -180,31 +143,29 @@ def nx_with_worker(cls):
         async def start_queue(self):
             """Start the task queue processing. Returns the queue task."""
 
-            self._nx_process_queue_task = asyncio.create_task(
-                self._process_queue()
-            )
+            self._nx_process_queue_task = asyncio.create_task(self._process_queue())
 
         def queue_task(self, coro):
             """
-            Schedules a coroutine to run on the worker's event loop in a thread-safe manner.
+            Schedules a coroutine to run on the worker's event loop.
 
             Parameters
             ----------
             coro : coroutine
-                A coroutine object to be executed in the worker thread.
+                Coroutine to be executed in the worker thread.
 
             Raises
             ------
             RuntimeError
-                If the worker is not started.
+                If worker is not started.
             ValueError
-                If the provided argument is not a coroutine object.
+                If argument is not a coroutine object.
 
             Notes
             -----
-            - Thread-safe: Can be called from any thread.
-            - Tasks are processed in FIFO order.
-            - Failed tasks are logged but don't stop queue processing.
+            - Thread-safe: Can be called from any thread
+            - Tasks are processed in FIFO order
+            - Failed tasks are logged but don't stop queue
             """
 
             if not asyncio.iscoroutine(coro):
@@ -221,21 +182,21 @@ def nx_with_worker(cls):
 
         def start(self, *args, **kwargs):
             """
-            Starts the worker thread and its event loop, initializing the worker's processing environment.
+            Starts the worker thread and its event loop.
 
             Parameters
             ----------
             *args : Any
-                Positional arguments passed to the worker's `run()` method.
+                Positional arguments passed to run().
             **kwargs : Any
-                Keyword arguments passed to the worker's `run()` method.
-                - run_coro: Optional coroutine to run instead of the default `run()` method.
+                Keyword arguments passed to run().
+                run_coro: Optional coroutine to run instead of run().
 
             Notes
             -----
-            - Creates a new thread with its own event loop.
-            - Automatically starts task queue processing if no `run()` method is defined.
-            - Emits `started` signal when initialization is complete.
+            - Creates new thread with its own event loop
+            - Starts task queue if no run() method defined
+            - Emits 'started' signal when initialized
             """
 
             run_coro = kwargs.pop(_WorkerConstants.RUN_CORO, None)
@@ -285,9 +246,7 @@ def nx_with_worker(cls):
                             try:
                                 await self._nx_process_queue_task
                             except asyncio.CancelledError:
-                                logger.debug(
-                                    "_process_queue_task cancelled"
-                                )
+                                logger.debug("_process_queue_task cancelled")
 
                     finally:
                         self.stopped.emit()
@@ -318,10 +277,10 @@ def nx_with_worker(cls):
 
             Notes
             -----
-            - Cancels any running tasks including the main `run()` coroutine.
-            - Waits for task queue to finish processing.
-            - Emits `stopped` signal before final cleanup.
-            - Thread is joined with a 2-second timeout.
+            - Cancels any running tasks including main run() coroutine
+            - Waits for task queue to finish processing
+            - Emits 'stopped' signal before final cleanup
+            - Thread is joined with a 2-second timeout
             """
 
             logger.debug("Starting worker shutdown")
@@ -344,24 +303,23 @@ def nx_with_worker(cls):
 
         def _copy_affinity(self, target):
             """
-            Copy this worker's thread affinity (thread, loop, and affinity object) to the target.
-            This is an internal method used by move_to_thread() and should not be called directly.
-
-            The method copies thread, event loop, and affinity object references from this worker
-            to the target object, effectively moving the target to this worker's thread context.
+            Copy this worker's thread affinity to the target.
 
             Parameters
             ----------
             target : object
-                Target object that will receive this worker's thread affinity.
-                Must be decorated with @nx_with_signals or @nx_with_worker.
+                Target object to receive worker's thread affinity.
 
             Raises
             ------
             RuntimeError
-                If the worker thread is not started.
+                If worker thread is not started.
             TypeError
-                If the target is not compatible (not decorated with @nx_with_signals or @nx_with_worker).
+                If target is not compatible with signals.
+
+            Notes
+            -----
+            Internal method used by move_to_thread().
             """
 
             with self._nx_lifecycle_lock:

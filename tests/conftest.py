@@ -43,18 +43,18 @@ class Sender:
 class Receiver:
     """Receiver class"""
 
-    def __str__(self):
-        return f"Receiver(id={self.id})"
-
     def __init__(self):
         super().__init__()
+        self.id = id(self)
 
         logger.debug("[Receiver][__init__] self=%s", self)
 
         self.received_value = None
         self.received_count = 0
-        self.id = id(self)
         logger.info("Created Receiver[%d]", self.id)
+
+    def __str__(self):
+        return f"Receiver(id={self.id})"
 
     @slot
     async def on_value_changed(self, value: int):
@@ -130,7 +130,7 @@ def setup_logging():
     # Setting formatter
     formatter = logging.Formatter(
         "%(asctime)s - %(name)s - [%(filename)s:%(funcName)s] - %(levelname)s - %(message)s",
-        datefmt="%H:%M:%S"
+        datefmt="%H:%M:%S",
     )
     console_handler.setFormatter(formatter)
     root.addHandler(console_handler)
@@ -146,11 +146,11 @@ def setup_logging():
     logging.getLogger("pynnex.slot.trace").setLevel(logging.WARNING)
 
     # For debugging
-    root.setLevel(logging.DEBUG)
-    console_handler.setLevel(logging.DEBUG)
-    logging.getLogger("pynnex").setLevel(logging.DEBUG)
-    logging.getLogger("tests").setLevel(logging.DEBUG)
-    logging.getLogger("pynnex.signal").setLevel(logging.DEBUG)
-    logging.getLogger("pynnex.slot").setLevel(logging.DEBUG)
-    logging.getLogger("pynnex.signal.trace").setLevel(logging.DEBUG)
-    logging.getLogger("pynnex.slot.trace").setLevel(logging.DEBUG)
+    # root.setLevel(logging.DEBUG)
+    # console_handler.setLevel(logging.DEBUG)
+    # logging.getLogger("pynnex").setLevel(logging.DEBUG)
+    # logging.getLogger("tests").setLevel(logging.DEBUG)
+    # logging.getLogger("pynnex.signal").setLevel(logging.DEBUG)
+    # logging.getLogger("pynnex.slot").setLevel(logging.DEBUG)
+    # logging.getLogger("pynnex.signal.trace").setLevel(logging.DEBUG)
+    # logging.getLogger("pynnex.slot.trace").setLevel(logging.DEBUG)
