@@ -9,17 +9,18 @@ Stock monitor simple example.
 This module shows a straightforward example of using a worker (`DataWorker`)
 to generate data continuously and a display (`DataDisplay`) to process and
 log that data on the main thread. It's a minimal demonstration of PynneX's
-thread-safe signal/slot invocation.
+thread-safe emitter/listener invocation.
 """
 
 import asyncio
 import threading
 import time
 from utils import logger_setup
-from pynnex import with_signals, signal, slot, with_worker
+from pynnex import with_emitters, emitter, listener, with_worker
 
 logger_setup("pynnex")
 logger = logger_setup(__name__)
+
 
 @with_worker
 class DataWorker:
@@ -33,7 +34,7 @@ class DataWorker:
     _update_task : asyncio.Task, optional
         The asynchronous task that updates and emits data.
 
-    Signals
+    Emitters
     -------
     data_processed
         Emitted with the incremented integer each time data is processed.
@@ -48,10 +49,10 @@ class DataWorker:
         self._running = False
         self._update_task = None
 
-    @signal
+    @emitter
     def data_processed(self):
         """
-        Signal emitted when data is processed.
+        Emitter emitted when data is processed.
 
         Receives an integer count.
         """
@@ -90,7 +91,7 @@ class DataWorker:
         count = 0
 
         while self._running:
-            logger.debug("[DataWorker] Processing data %d", count)
+            logger.info("[DataWorker] Processing data %d", count)
             self.data_processed.emit(count)
 
             count += 1
@@ -98,7 +99,7 @@ class DataWorker:
             await asyncio.sleep(1)
 
 
-@with_signals
+@with_emitters
 class DataDisplay:
     """
     A display class that receives the processed data from the worker.
@@ -111,24 +112,26 @@ class DataDisplay:
 
     def __init__(self):
         self.last_value = None
-        logger.debug("[DataDisplay] Created in thread: %s", threading.current_thread().name)
+        logger.info(
+            "[DataDisplay] Created in thread: %s", threading.current_thread().name
+        )
 
-    @slot
+    @listener
     def on_data_processed(self, value):
         """
-        Slot called when data is processed.
+        Listener called when data is processed.
 
         Logs the received value and simulates a brief processing delay.
         """
 
         current_thread = threading.current_thread()
-        logger.debug(
+        logger.info(
             "[DataDisplay] Received value %d in thread: %s", value, current_thread.name
         )
         self.last_value = value
         # Add a small delay to check the result
         time.sleep(0.1)
-        logger.debug("[DataDisplay] Processed value %d", value)
+        logger.info("[DataDisplay] Processed value %d", value)
 
 
 async def main():
@@ -136,7 +139,7 @@ async def main():
     Main function demonstrating how to set up and run the worker and display.
     """
 
-    logger.debug("Starting in thread: %s", threading.current_thread().name)
+    logger.info("Starting in thread: %s", threading.current_thread().name)
 
     worker = DataWorker()
     display = DataDisplay()

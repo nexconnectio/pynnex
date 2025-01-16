@@ -15,7 +15,7 @@ Usage:
   2. Instantiate `StockProcessor` to handle alert conditions and further processing.
   3. Instantiate `StockViewModel` to manage UI-related state or to relay
      processed data to the presentation layer.
-  4. Connect the signals/slots between these objects to build a reactive flow
+  4. Connect the emitters/listeners between these objects to build a reactive flow
      that updates real-time stock information and triggers alerts when conditions are met.
 """
 
@@ -25,10 +25,11 @@ import random
 import threading
 import time
 from typing import Dict, Optional
-from pynnex import with_signals, signal, slot, with_worker, nx_property
+from pynnex import with_emitters, emitter, listener, with_worker, nx_property
 from utils import logger_setup
 
 logger = logger_setup(__name__)
+
 
 @dataclass
 class StockPrice:
@@ -73,7 +74,7 @@ class StockService:
     _update_task : asyncio.Task, optional
         The asyncio task that periodically updates prices.
 
-    Signals
+    Emitters
     -------
     price_updated
         Emitted every time a single stock price is updated. Receives a `StockPrice` object.
@@ -123,9 +124,9 @@ class StockService:
         with self._desc_lock:
             return dict(self._descriptions)
 
-    @signal
+    @emitter
     def price_updated(self):
-        """Signal emitted when stock price is updated"""
+        """Emitter emitted when stock price is updated"""
 
     async def on_started(self):
         """
@@ -191,13 +192,13 @@ class StockService:
             await asyncio.sleep(1)
 
 
-@with_signals
+@with_emitters
 class StockViewModel:
     """
     UI state manager for stock prices and alerts.
 
     This class holds the current stock prices and user-defined alert settings,
-    and provides signals/slots for updating UI layers or notifying other components
+    and provides emitters/listeners for updating UI layers or notifying other components
     about price changes and alerts.
 
     Attributes
@@ -215,39 +216,39 @@ class StockViewModel:
         self.alerts: list[tuple[str, str, float]] = []
         self.alert_settings: Dict[str, tuple[Optional[float], Optional[float]]] = {}
 
-    @signal
+    @emitter
     def prices_updated(self):
         """
-        Signal emitted when stock prices are updated.
+        Emitter emitted when stock prices are updated.
 
         Receives a dictionary of the form {stock_code: StockPrice}.
         """
 
-    @signal
+    @emitter
     def alert_added(self):
         """
-        Signal emitted when a new alert is added.
+        Emitter emitted when a new alert is added.
 
         Receives (code, alert_type, current_price).
         """
 
-    @signal
+    @emitter
     def set_alert(self):
         """
-        Signal emitted when user requests to set an alert.
+        Emitter emitted when user requests to set an alert.
 
         Receives (code, lower, upper).
         """
 
-    @signal
+    @emitter
     def remove_alert(self):
         """
-        Signal emitted when user requests to remove an alert.
+        Emitter emitted when user requests to remove an alert.
 
         Receives (code).
         """
 
-    @slot
+    @listener
     def on_price_processed(self, price_data: StockPrice):
         """
         Receive processed stock price data from StockProcessor.
@@ -260,7 +261,7 @@ class StockViewModel:
         self.current_prices[price_data.code] = price_data
         self.prices_updated.emit(dict(self.current_prices))
 
-    @slot
+    @listener
     def on_alert_triggered(self, code: str, alert_type: str, price: float):
         """
         Receive an alert trigger from StockProcessor.
@@ -271,7 +272,7 @@ class StockViewModel:
         self.alerts.append((code, alert_type, price))
         self.alert_added.emit(code, alert_type, price)
 
-    @slot
+    @listener
     def on_alert_settings_changed(
         self, code: str, lower: Optional[float], upper: Optional[float]
     ):
@@ -296,14 +297,14 @@ class StockProcessor:
     This class runs in a separate worker thread, receiving price updates from
     `StockService` and determining whether alerts should be triggered based on
     user-defined thresholds. If an alert condition is met, an `alert_triggered`
-    signal is emitted.
+    emitter is emitted.
 
     Attributes
     ----------
     price_alerts : Dict[str, tuple[Optional[float], Optional[float]]]
         A mapping of stock_code to (lower_alert_threshold, upper_alert_threshold).
 
-    Signals
+    Emitters
     -------
     price_processed
         Emitted after processing a new price data and optionally triggering alerts.
@@ -335,19 +336,19 @@ class StockProcessor:
 
         logger.info("[StockProcessor][on_stopped] stopped")
 
-    @signal
+    @emitter
     def price_processed(self):
-        """Signal emitted when stock price is processed"""
+        """Emitter emitted when stock price is processed"""
 
-    @signal
+    @emitter
     def alert_triggered(self):
-        """Signal emitted when price alert condition is met"""
+        """Emitter emitted when price alert condition is met"""
 
-    @signal
+    @emitter
     def alert_settings_changed(self):
-        """Signal emitted when price alert settings are changed"""
+        """Emitter emitted when price alert settings are changed"""
 
-    @slot
+    @listener
     async def on_set_price_alert(
         self, code: str, lower: Optional[float], upper: Optional[float]
     ):
@@ -360,7 +361,7 @@ class StockProcessor:
         self.price_alerts[code] = (lower, upper)
         self.alert_settings_changed.emit(code, lower, upper)
 
-    @slot
+    @listener
     async def on_remove_price_alert(self, code: str):
         """
         Receive a price alert removal request from the main thread or UI.
@@ -372,7 +373,7 @@ class StockProcessor:
             del self.price_alerts[code]
             self.alert_settings_changed.emit(code, None, None)
 
-    @slot
+    @listener
     async def on_price_updated(self, price_data: StockPrice):
         """
         Receive stock price updates from the `StockService`.
@@ -387,7 +388,7 @@ class StockProcessor:
             coro = self.process_price(price_data)
             self.queue_task(coro)
         except Exception as e:
-            logger.error("[SLOT] Error in on_price_updated: %s", e, exc_info=True)
+            logger.error("Error in on_price_updated: %s", e, exc_info=True)
 
     async def process_price(self, price_data: StockPrice):
         """

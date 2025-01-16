@@ -6,12 +6,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2025-01-16
+
+### Changed
+- Renamed signal/slot terminology to emitter/listener across the API:
+  - @signal → @emitter (aliases: @signal, @publisher)
+  - @slot → @listener (aliases: @slot, @subscriber)
+  - @with_signals → @with_emitters (aliases: @with_signals, @with_publishers)
+  - Updated all documentation and examples
+  - Kept old terms as aliases for backward compatibility
+  - Updated logging namespaces from signal/slot to emitter/listener
+
+## [1.0.4] - 2025-01-15
+
+### Changed
+- Handle task name safely
+
 ## [1.0.3] - 2025-01-15
 
 ### Changed
 - Enhanced logging structure with hierarchical loggers:
   - Improved log message clarity and structure 
-  - Added trace-level loggers (signal.trace, slot.trace) for detailed debugging
+  - Added trace-level loggers (emitter.trace, listener.trace) for detailed debugging
 - Improved weak reference handling:
   - Replaced manual bound method reconstruction with WeakMethod
   - Enhanced cleanup for weak method references
@@ -20,7 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Removed nx_ prefix from public API imports for better consistency:
-  - Updated imports in examples and tests to use unprefixed versions (signal, with_signals, etc.)
+  - Updated imports in examples and tests to use unprefixed versions (emitter, with_emitters, etc.)
   - Maintained nx_ prefix in internal implementation files
   - Improved API documentation with detailed method descriptions
 
@@ -35,16 +51,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.0] - 2024-12-28
 
 ### Added
-- Initial release of Pynnex (rebranded from tsignal)
-- Comprehensive signal-slot mechanism with Python 3.10+ features
+- Initial release of PynneX (rebranded from temitter)
+- Comprehensive emitter-listener mechanism with Python 3.10+ features
 - Core Features:
-  - Robust signal-slot communication pattern
+  - Robust emitter-listener communication pattern
   - Thread-safe operations with automatic thread affinity
   - Full async/await support
   - Weak reference support for automatic cleanup
   - One-shot connections
   - Worker thread pattern
-  - Simplified decorator aliases (@signal, @slot, @with_signals, @with_worker)
+  - Simplified decorator aliases (@emitter, @listener, @with_emitters, @with_worker)
 - Comprehensive test suite with 100% coverage
 - Full documentation and examples
 

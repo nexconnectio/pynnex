@@ -15,7 +15,7 @@ import asyncio
 import logging
 import threading
 import pytest
-from pynnex import signal, slot, with_signals, with_worker
+from pynnex import emitter, listener, with_emitters, with_worker
 
 logger = logging.getLogger(__name__)
 
@@ -42,17 +42,17 @@ class WorkerB:
         await self.start_queue()
 
 
-@with_signals
+@with_emitters
 class Mover:
     """
     move_to_thread test object.
     Created in main thread, then moved to WorkerA -> WorkerB,
-    to check signal behavior.
+    to check emitter behavior.
     """
 
-    @signal
+    @emitter
     def data_ready(self, value):
-        """Signal for data ready."""
+        """Emitter for data ready."""
 
     def __init__(self):
         super().__init__()
@@ -61,19 +61,27 @@ class Mover:
     def do_work(self, value):
         """
         Assume some work is done in a separate thread (or main thread),
-        and emit a signal.
+        and emit an emitter.
         """
 
-        logger.info("[Mover][do_work] value=%s (thread=%s)", value, threading.current_thread().name)
+        logger.info(
+            "[Mover][do_work] value=%s (thread=%s)",
+            value,
+            threading.current_thread().name,
+        )
         self.data_ready.emit(value)
 
-    @slot
+    @listener
     def on_data_ready(self, value):
         """
-        Slot for data_ready signal.
+        Listener for data_ready emitter.
         """
 
-        logger.info("[Mover][on_data_ready] value=%s (thread=%s)", value, threading.current_thread().name)
+        logger.info(
+            "[Mover][on_data_ready] value=%s (thread=%s)",
+            value,
+            threading.current_thread().name,
+        )
         self.emitted_values.append(value)
 
 
@@ -83,7 +91,7 @@ async def test_move_to_thread():
     1) Create Mover object in main thread
     2) Move to WorkerA thread
     3) Move to WorkerB thread
-    Check if signal is emitted/received correctly in each step
+    Check if emitter is emitted/received correctly in each step
     """
 
     logger.info("=== test_move_to_thread START ===")
@@ -91,7 +99,7 @@ async def test_move_to_thread():
     # 1) Create Mover object in main thread
     mover = Mover()
 
-    # Connect signal to mover's on_data_ready method
+    # Connect emitter to mover's on_data_ready method
     mover.data_ready.connect(mover, mover.on_data_ready)
 
     # 2) Prepare WorkerA
@@ -103,11 +111,13 @@ async def test_move_to_thread():
     mover.move_to_thread(worker_a)
     logger.info("Mover moved to WorkerA thread")
 
-    # Call do_work -> WorkerA thread emits signal
+    # Call do_work -> WorkerA thread emits emitter
     mover.do_work("from WorkerA")
-    await asyncio.sleep(0.3)  # Wait for signal to be processed
+    await asyncio.sleep(0.3)  # Wait for emitter to be processed
 
-    assert "from WorkerA" in mover.emitted_values, "The data emitted from WorkerA should be received"
+    assert (
+        "from WorkerA" in mover.emitted_values
+    ), "The data emitted from WorkerA should be received"
 
     # 3) Prepare WorkerB
     worker_b = WorkerB()
@@ -117,11 +127,13 @@ async def test_move_to_thread():
     mover.move_to_thread(worker_b)
     logger.info("Mover moved to WorkerB thread")
 
-    # do_work -> Now WorkerB emits signal
+    # do_work -> Now WorkerB emits emitter
     mover.do_work("from WorkerB")
     await asyncio.sleep(0.3)
 
-    assert "from WorkerB" in mover.emitted_values, "The data emitted from WorkerB should be received"
+    assert (
+        "from WorkerB" in mover.emitted_values
+    ), "The data emitted from WorkerB should be received"
 
     # Clean up
     worker_a.stop()

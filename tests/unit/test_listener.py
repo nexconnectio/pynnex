@@ -1,10 +1,10 @@
-# tests/unit/test_slot.py
+# tests/unit/test_listener.py
 
 # pylint: disable=duplicate-code
 # pylint: disable=no-member
 
 """
-Test cases for the slot pattern.
+Test cases for the listener pattern.
 """
 
 import asyncio
@@ -12,14 +12,14 @@ import threading
 import time
 import logging
 import pytest
-from pynnex import with_signals, slot
+from pynnex import with_emitters, listener
 
 logger = logging.getLogger(__name__)
 
 
 @pytest.mark.asyncio
-async def test_sync_slot(sender, receiver):
-    """Test synchronous slot execution"""
+async def test_sync_listener(sender, receiver):
+    """Test synchronous listener execution"""
 
     sender.value_changed.connect(receiver, receiver.on_value_changed_sync)
     sender.emit_value(42)
@@ -28,8 +28,8 @@ async def test_sync_slot(sender, receiver):
 
 
 @pytest.mark.asyncio
-async def test_directly_call_slot(receiver):
-    """Test direct slot calls"""
+async def test_directly_call_listener(receiver):
+    """Test direct listener calls"""
 
     await receiver.on_value_changed(42)
     assert receiver.received_value == 42
@@ -41,16 +41,16 @@ async def test_directly_call_slot(receiver):
 
 
 @pytest.mark.asyncio
-async def test_slot_exception(sender, receiver):
-    """Test exception handling in slots"""
+async def test_listener_exception(sender, receiver):
+    """Test exception handling in listeners"""
 
-    @with_signals
+    @with_emitters
     class ExceptionReceiver:
         """Receiver class for exception testing"""
 
-        @slot
+        @listener
         async def on_value_changed(self, value):
-            """Slot for value changed"""
+            """Listener for value changed"""
             raise ValueError("Test exception")
 
     exception_receiver = ExceptionReceiver()
@@ -66,10 +66,10 @@ async def test_slot_exception(sender, receiver):
 
 
 @pytest.mark.asyncio
-async def test_slot_thread_safety():
-    """Test slot direct calls from different threads"""
+async def test_listener_thread_safety():
+    """Test listener direct calls from different threads"""
 
-    @with_signals
+    @with_emitters
     class ThreadTestReceiver:
         """Receiver class for thread safety testing"""
 
@@ -79,17 +79,17 @@ async def test_slot_thread_safety():
             self.received_count = 0
             self.execution_thread = None
 
-        @slot
-        async def async_slot(self, value):
-            """Async slot for thread safety testing"""
+        @listener
+        async def async_listener(self, value):
+            """Async listener for thread safety testing"""
             self.execution_thread = threading.current_thread()
             await asyncio.sleep(0.1)  # work simulation with sleep
             self.received_value = value
             self.received_count += 1
 
-        @slot
-        def sync_slot(self, value):
-            """Sync slot for thread safety testing"""
+        @listener
+        def sync_listener(self, value):
+            """Sync listener for thread safety testing"""
             self.execution_thread = threading.current_thread()
             time.sleep(0.1)  # work simulation with sleep
             self.received_value = value
@@ -103,13 +103,13 @@ async def test_slot_thread_safety():
     def background_task():
         """Background task for thread safety testing"""
         try:
-            # Before async_slot call
+            # Before async_listener call
             initial_values["value"] = receiver.received_value
             initial_values["count"] = receiver.received_count
 
-            coro = receiver.async_slot(42)
+            coro = receiver.async_listener(42)
             future = asyncio.run_coroutine_threadsafe(coro, receiver._nx_loop)
-            # Wait for async_slot result
+            # Wait for async_listener result
             future.result()
 
             # verify state change
@@ -117,11 +117,11 @@ async def test_slot_thread_safety():
             assert receiver.received_count == initial_values["count"] + 1
             assert receiver.execution_thread == main_thread
 
-            # Before sync_slot call
+            # Before sync_listener call
             initial_values["value"] = receiver.received_value
             initial_values["count"] = receiver.received_count
 
-            receiver.sync_slot(43)
+            receiver.sync_listener(43)
 
             # verify state change
             assert receiver.received_value != initial_values["value"]
@@ -146,7 +146,7 @@ async def test_slot_thread_safety():
         if pending:
             logger.debug("Cleaning up %d pending tasks", len(pending))
             for task in pending:
-                if "test_slot_thread_safety" in str(task.get_coro()):
+                if "test_listener_thread_safety" in str(task.get_coro()):
                     logger.debug("Skipping test function task: %s", task)
                 else:
                     logger.debug("Found application task: %s", task)

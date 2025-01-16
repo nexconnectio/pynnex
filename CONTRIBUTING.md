@@ -1,6 +1,6 @@
 <!-- CONTRIBUTING.md -->
 
-Thank you for your interest in contributing to Pynnex! This document provides guidelines and instructions for contributing to the project.
+Thank you for your interest in contributing to PynneX! This document provides guidelines and instructions for contributing to the project.
 
 ## Important Notice
 Please note that while we greatly appreciate and welcome contributions, this project does not provide financial compensation for contributions. Any donations or sponsorships received are used solely for project maintenance and improvement, and are not distributed to individual contributors.
@@ -45,7 +45,7 @@ pytest
 pytest --cov=pynnex
 
 # Run specific test file
-pytest tests/unit/test_signal.py
+pytest tests/unit/test_emitter.py
 
 # Enable debug logging during tests
 PYNNEX_DEBUG=1 pytest
@@ -102,13 +102,13 @@ logger = logging.getLogger(__name__)
 logger.debug("Detailed connection info")
 
 # Important state changes
-logger.info("Signal connected successfully")
+logger.info("Emitter connected successfully")
 
 # Warning conditions
 logger.warning("Multiple connections detected")
 
 # Errors
-logger.error("Failed to emit signal", exc_info=True)
+logger.error("Failed to emit emitter", exc_info=True)
 ```
 
 ## Code of Conduct

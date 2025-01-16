@@ -1,7 +1,7 @@
 # src/pynnex/utils.py
 
 """
-Utility functions for pynnex
+Utility functions for PynneX
 """
 
 import logging

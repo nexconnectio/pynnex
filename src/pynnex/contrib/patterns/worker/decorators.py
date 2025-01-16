@@ -15,7 +15,7 @@ import asyncio
 import inspect
 import logging
 import threading
-from pynnex.core import nx_signal, NxSignalConstants
+from pynnex.core import nx_emitter, NxEmitterConstants
 
 logger = logging.getLogger(__name__)
 
@@ -45,15 +45,15 @@ def nx_with_worker(cls):
     -----
     - Creates dedicated thread with event loop
     - Provides task queue for async operations
-    - Supports signal/slot communication
-    - Emits started/stopped signals
+    - Supports emitter/listener communication
+    - Emits started/stopped emitters
     - Manages worker lifecycle via start/stop methods
 
     See Also
     --------
-    nx_with_signals : Base decorator for signal/slot features
-    nx_signal : Signal decorator
-    nx_slot : Slot decorator
+    nx_with_emitters : Base decorator for emitter/listener features
+    nx_emitter : Emitter decorator
+    nx_listener : Listener decorator
     """
 
     class WorkerClass(cls):
@@ -87,13 +87,13 @@ def nx_with_worker(cls):
 
             return self._nx_loop
 
-        @nx_signal
+        @nx_emitter
         def started(self):
-            """Signal emitted when the worker starts"""
+            """Emitter emitted when the worker starts"""
 
-        @nx_signal
+        @nx_emitter
         def stopped(self):
-            """Signal emitted when the worker stops"""
+            """Emitter emitted when the worker stops"""
 
         async def run(self, *args, **kwargs):
             """Run the worker."""
@@ -196,7 +196,7 @@ def nx_with_worker(cls):
             -----
             - Creates new thread with its own event loop
             - Starts task queue if no run() method defined
-            - Emits 'started' signal when initialized
+            - Emits 'started' emitter when initialized
             """
 
             run_coro = kwargs.pop(_WorkerConstants.RUN_CORO, None)
@@ -250,7 +250,7 @@ def nx_with_worker(cls):
 
                     finally:
                         self.stopped.emit()
-                        # Give the event loop a chance to emit the signal
+                        # Give the event loop a chance to emit the emitter
                         await asyncio.sleep(0)
                         logger.debug("emit stopped")
 
@@ -279,7 +279,7 @@ def nx_with_worker(cls):
             -----
             - Cancels any running tasks including main run() coroutine
             - Waits for task queue to finish processing
-            - Emits 'stopped' signal before final cleanup
+            - Emits 'stopped' emitter before final cleanup
             - Thread is joined with a 2-second timeout
             """
 
@@ -315,7 +315,7 @@ def nx_with_worker(cls):
             RuntimeError
                 If worker thread is not started.
             TypeError
-                If target is not compatible with signals.
+                If target is not compatible with emitters.
 
             Notes
             -----
@@ -329,14 +329,14 @@ def nx_with_worker(cls):
                         "Cannot move target to this thread."
                     )
 
-            # Assume target is initialized with nx_with_signals
+            # Assume target is initialized with nx_with_emitters
             # Reset target's _nx_thread, _nx_loop, _nx_affinity
-            if not hasattr(target, NxSignalConstants.THREAD) or not hasattr(
-                target, NxSignalConstants.LOOP
+            if not hasattr(target, NxEmitterConstants.THREAD) or not hasattr(
+                target, NxEmitterConstants.LOOP
             ):
                 raise TypeError(
                     "Target is not compatible. "
-                    "Ensure it is decorated with nx_with_signals or nx_with_worker."
+                    "Ensure it is decorated with nx_with_emitters or nx_with_worker."
                 )
 
             # Copy worker's _nx_affinity, _nx_thread, _nx_loop to target

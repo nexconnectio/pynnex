@@ -1,49 +1,50 @@
-# examples/signal_basic.py
+# examples/emitter_basic.py
 
 """
-Basic Signal-Slot Example
+Basic Emitter-Listener Example
 
-This example demonstrates the fundamental usage of PynneX with a synchronous slot:
-1. Creating a signal
-2. Connecting a regular method as a slot (without @nx_slot)
-3. Emitting a signal to trigger slot execution
+This example demonstrates the fundamental usage of PynneX with a synchronous listener:
+1. Creating an emitter
+2. Connecting a regular method as a listener (without @nx_listener)
+3. Emitting an emitter to trigger listener execution
 
 Key Points:
-- Showcases the most basic form of signal-slot connection.
-- The slot is a normal instance method of a class, not decorated with @nx_slot.
-- Emphasizes that even without @nx_slot, a callable method can act as a slot.
-- Introduces the concept of signal emission and immediate slot execution.
+- Showcases the most basic form of emitter-listener connection.
+- The listener is a normal instance method of a class, not decorated with @nx_listener.
+- Emphasizes that even without @nx_listener, a callable method can act as a listener.
+- Introduces the concept of emitter emission and immediate listener execution.
 """
 
 import asyncio
 import time
-from pynnex.core import with_signals, signal, slot
+from pynnex.core import with_emitters, emitter, listener
 from utils import logger_setup
 
 logger_setup("pynnex")
 logger = logger_setup(__name__)
 
-@with_signals
+
+@with_emitters
 class Counter:
     """
-    A simple counter class that emits a signal when its count changes.
+    A simple counter class that emits an emitter when its count changes.
     """
 
     def __init__(self):
         self.count = 0
 
-    @signal
+    @emitter
     def count_changed(self):
-        """Signal emitted when count changes"""
+        """Emitter emitted when count changes"""
 
     def increment(self):
-        """Increment counter and emit signal"""
+        """Increment counter and emit emitter"""
         self.count += 1
         logger.debug("[Counter] Incremented to: %d", self.count)
         self.count_changed.emit(self.count)
 
 
-@with_signals
+@with_emitters
 class Display:
     """
     A simple display class that receives count updates and processes them.
@@ -53,7 +54,7 @@ class Display:
         self.last_value = None
 
     def on_count_changed(self, value):
-        """slot that receives count updates"""
+        """listener that receives count updates"""
         print(f"[Display] Processing count: {value}")
         # Simulate some heavy processing
         time.sleep(1)
@@ -70,7 +71,7 @@ async def main():
     counter = Counter()
     display = Display()
 
-    # Connect signal to slot
+    # Connect emitter to listener
     counter.count_changed.connect(display.on_count_changed)
 
     print("[main] Starting counter example...")
@@ -83,7 +84,7 @@ async def main():
         if line.lower() == "q":
             break
 
-        # Increment counter which will emit signal
+        # Increment counter which will emit emitter
         counter.increment()
 
 

@@ -11,7 +11,7 @@ Test cases for stress testing.
 import asyncio
 import logging
 import pytest
-from pynnex import with_signals, signal, slot, nx_graceful_shutdown
+from pynnex import with_emitters, emitter, listener, nx_graceful_shutdown
 
 logger = logging.getLogger(__name__)
 
@@ -32,33 +32,33 @@ async def graceful_shutdown():
 
 
 @pytest.mark.asyncio
-async def test_heavy_signal_load():
-    """Test heavy signal load"""
+async def test_heavy_emitter_load():
+    """Test heavy emitter load"""
 
-    @with_signals
+    @with_emitters
     class Sender:
         """Sender class"""
 
-        @signal
-        def signal(self):
-            """Signal method"""
+        @emitter
+        def emitter(self):
+            """Emitter method"""
 
-    @with_signals
+    @with_emitters
     class Receiver:
         """Receiver class"""
 
-        @slot
-        async def slot(self):
-            """Slot method"""
+        @listener
+        async def listener(self):
+            """Listener method"""
             await asyncio.sleep(0.001)
 
     sender = Sender()
     receivers = [Receiver() for _ in range(100)]
     for r in receivers:
-        sender.signal.connect(r, r.slot)
+        sender.emitter.connect(r, r.listener)
 
     for _ in range(1000):
-        sender.signal.emit()
+        sender.emitter.emit()
 
     # Graceful shutdown: ensure all tasks triggered by emit are completed
     await nx_graceful_shutdown()

@@ -10,32 +10,32 @@ Test cases for memory usage.
 """
 
 import pytest
-from pynnex import with_signals, signal, slot
+from pynnex import with_emitters, emitter, listener
 
 
-def create_complex_signal_chain():
-    """Create a complex signal chain"""
+def create_complex_emitter_chain():
+    """Create a complex emitter chain"""
 
-    @with_signals
+    @with_emitters
     class Sender:
         """Sender class"""
 
-        @signal
-        def signal(self):
-            """Signal method"""
+        @emitter
+        def emitter(self):
+            """Emitter method"""
 
-    @with_signals
+    @with_emitters
     class Receiver:
         """Receiver class"""
 
-        @slot
-        def slot(self, value):
-            """Slot method"""
+        @listener
+        def listener(self, value):
+            """Listener method"""
 
     sender = Sender()
     receivers = [Receiver() for _ in range(100)]
     for r in receivers:
-        sender.signal.connect(r, r.slot)
+        sender.emitter.connect(r, r.listener)
     return sender
 
 
@@ -43,7 +43,7 @@ def create_complex_signal_chain():
 @pytest.mark.asyncio
 async def test_memory_usage():
     """Test memory usage"""
-    # Create and delete signal/slot pairs repeatedly
+    # Create and delete emitter/listener pairs repeatedly
     for _ in range(1000):
-        sender = create_complex_signal_chain()
-        sender.signal.disconnect()
+        sender = create_complex_emitter_chain()
+        sender.emitter.disconnect()

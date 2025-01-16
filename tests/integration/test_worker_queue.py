@@ -10,7 +10,7 @@ Test cases for the worker-queue pattern.
 import asyncio
 import logging
 import pytest
-from pynnex import signal, with_worker
+from pynnex import emitter, with_worker
 
 logger = logging.getLogger(__name__)
 
@@ -142,29 +142,29 @@ async def test_queue_cleanup_on_stop(queue_worker):
 
 
 @pytest.mark.asyncio
-async def test_mixed_signal_and_queue(queue_worker):
-    """Test for simultaneous use of signals and task queue"""
+async def test_mixed_emitter_and_queue(queue_worker):
+    """Test for simultaneous use of emitters and task queue"""
 
-    # Add a signal
-    @signal
+    # Add an emitter
+    @emitter
     def task_completed():
         pass
 
     queue_worker.task_completed = task_completed.__get__(queue_worker)
-    signal_received = []
-    queue_worker.task_completed.connect(lambda: signal_received.append(True))
+    emitter_received = []
+    queue_worker.task_completed.connect(lambda: emitter_received.append(True))
 
     queue_worker.start()
     await asyncio.sleep(0.1)
 
-    # Add a task and emit the signal
-    async def task_with_signal():
+    # Add a task and emit the emitter
+    async def task_with_emitter():
         await asyncio.sleep(0.1)
-        queue_worker.processed_items.append("signal_task")
+        queue_worker.processed_items.append("emitter_task")
         queue_worker.task_completed.emit()
 
-    queue_worker.queue_task(task_with_signal())
+    queue_worker.queue_task(task_with_emitter())
     await asyncio.sleep(0.3)
 
-    assert "signal_task" in queue_worker.processed_items
-    assert signal_received == [True]
+    assert "emitter_task" in queue_worker.processed_items
+    assert emitter_received == [True]

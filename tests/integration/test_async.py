@@ -12,16 +12,16 @@ logger = logging.getLogger(__name__)
 
 
 @pytest.mark.asyncio
-async def test_multiple_async_slots(sender, receiver):
-    """Test multiple async slots receiving signals"""
+async def test_multiple_async_listeners(sender, receiver):
+    """Test multiple async listeners receiving emitters"""
 
     logger.info("Test starting with receiver[%s]", receiver.id)
     receiver2 = receiver.__class__()
     logger.info("Created receiver2[%s]", receiver2.id)
 
-    logger.info("Connecting receiver[%s] to signal", receiver.id)
+    logger.info("Connecting receiver[%s] to emitter", receiver.id)
     sender.value_changed.connect(receiver, receiver.on_value_changed)
-    logger.info("Connecting receiver2[%s] to signal", receiver2.id)
+    logger.info("Connecting receiver2[%s] to emitter", receiver2.id)
     sender.value_changed.connect(receiver2, receiver2.on_value_changed)
 
     logger.info("Emitting value 42")
@@ -50,10 +50,10 @@ async def test_multiple_async_slots(sender, receiver):
 
 
 @pytest.mark.asyncio
-async def test_async_slot_execution(sender, receiver):
-    """Test async slot execution with event loop"""
+async def test_async_listener_execution(sender, receiver):
+    """Test async listener execution with event loop"""
 
-    logger.info("Starting test_async_slot_execution")
+    logger.info("Starting test_async_listener_execution")
     sender.value_changed.connect(receiver, receiver.on_value_changed)
 
     logger.info("Emitting value")

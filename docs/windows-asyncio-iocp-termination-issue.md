@@ -64,7 +64,7 @@ async def cleanup():
     loop.stop()
 ```
 
-2. Using signal handlers for graceful shutdown
+2. Using emitter handlers for graceful shutdown
 3. Implementing timeout-based forced termination
 
 ## Platform Specifics
