@@ -5,7 +5,7 @@ Stock monitor console example.
 
 This module demonstrates a command-line interface (CLI) for interacting
 with the stock monitoring system. It ties together `StockService`,
-`StockProcessor`, and `StockViewModel`, showing how signals/slots
+`StockProcessor`, and `StockViewModel`, showing how emitters/listeners
 flow between them to provide user commands and real-time price updates.
 
 Usage:
@@ -20,14 +20,14 @@ import asyncio
 from typing import Dict
 from utils import logger_setup
 from stock_core import StockPrice, StockService, StockProcessor, StockViewModel
-from pynnex import with_signals, slot
+from pynnex import with_emitters, listener
 
 logger_setup("pynnex")
 logger_setup("stock_core")
 logger = logger_setup(__name__)
 
 
-@with_signals
+@with_emitters
 class StockMonitorCLI:
     """
     Stock monitoring CLI interface.
@@ -97,7 +97,7 @@ class StockMonitorCLI:
             None, lambda: input(prompt)
         )
 
-    @slot
+    @listener
     def on_prices_updated(self, prices: Dict[str, StockPrice]):
         """
         Respond to updated prices in the view model.
@@ -163,6 +163,8 @@ class StockMonitorCLI:
 
             desc = self.service.descriptions
 
+            print(desc)
+
             for code in desc:
                 if code in self.view_model.current_prices:
                     price_data = self.view_model.current_prices[code]
@@ -219,7 +221,7 @@ class StockMonitorCLI:
         """
         Main execution loop for the CLI.
 
-        Connects signals between `service`, `processor`, and `view_model`,
+        Connects emitters between `service`, `processor`, and `view_model`,
         then continuously reads user input until the user exits.
         """
 
@@ -229,11 +231,11 @@ class StockMonitorCLI:
             asyncio.get_running_loop(),
         )
 
-        # Future for receiving started signal
+        # Future for receiving started emitter
         main_loop = asyncio.get_running_loop()
         processor_started = asyncio.Future()
 
-        # Connect service.start to processor's started signal
+        # Connect service.start to processor's started emitter
         def on_processor_started():
             """Processor started"""
 

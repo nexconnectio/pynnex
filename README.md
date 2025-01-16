@@ -7,40 +7,42 @@
 
 # PynneX
 
-**Looking for a lightweight alternative to heavy Signals/Slots libraries in an asynchronous and multi-threaded environment?**  
-PynneX is a pure-Python (asyncio-based) library that streamlines event-driven concurrency without the overhead of larger GUI frameworks or external dependencies.
+**Looking for a lightweight alternative to heavier event-driven, signal-slot, or concurrency libraries in Python?**  
+PynneX is a pure-Python (asyncio-based) library that streamlines event-driven concurrency without forcing you to adopt large frameworks or external dependencies.
 
 ---
 
 ## Why PynneX?
 
-Modern Python applications often blend async I/O and multithreading. Typical Signals/Slots solutions from GUI toolkits or external libraries can impose extra dependencies, especially when you only need concurrency handling rather than full UI features.
+Modern Python applications often combine async I/O and multithreading. Many existing event libraries or frameworks can bring in extra dependencies or complexities, especially if you only need clean, concurrency-focused event handling. PynneX offers a **focused** approach:
 
-PynneX offers a **focused** approach:
-- Decorator-based signals and slots for clean, event-driven code
-- Built-in **thread-safety**, so you don’t manually deal with locks or queues
-- Easy background task handling via `@nx_with_worker`
-- Seamless integration with **asyncio** (async or sync slots)
-- No external dependencies beyond Python 3.10+ (for improved asyncio support)
+- **Decorator-based emitters and listeners** for writing succinct, event-driven code  
+- **Built-in thread safety**—no need to manually handle locks or queues  
+- **Easy background tasks** via `@nx_with_worker` decorator  
+- **Asyncio integration**: either async or sync listeners work seamlessly  
+- **No external dependencies** beyond Python 3.10+ (for improved asyncio support) 
 
-As a result, events flow safely across threads and coroutines without “callback spaghetti,” giving you a cleaner concurrency model in pure Python.
+**PynneX** can also serve as a **lightweight** alternative to more complex concurrency or distributed event frameworks, letting you scale from simple local threads up to multi-threaded or async scenarios without overhead.
 
 ---
 
 ## Key Features
 
-- **Pure Python**: No external dependencies needed  
-- **Async/Await Friendly**: Slots can be synchronous or asynchronous, integrating naturally with `asyncio`  
-- **Thread-Safe**: Automatically manages signal emissions and slot executions across thread boundaries  
-- **Flexible Connection Types**: Direct or queued connections, chosen based on whether caller/callee share the same thread  
-- **Worker Thread Pattern**: Decorator `@nx_with_worker` provides a dedicated thread & event loop, simplifying background tasks  
-- **Familiar Decorators**: `@nx_signal`, `@nx_slot`, `@nx_with_worker`; also available without `nx_` prefix  
-- **Thread-Safe Properties**: Use `@nx_property` to emit signals on value changes, with automatic thread dispatch  
-- **Weak Reference**: If you connect a slot with `weak=True`, the connection is removed automatically once the receiver is garbage-collected
+- **Pure Python**: No external dependencies needed
+- **Event Decorators**: `@nx_emitter` and `@nx_listener` for intuitive event-based design
+- **Multiple Aliases Available**: Prefer different terminology?
+  - Use `@nx_signal` and `@nx_slot` if you like Qt-style signal-slots
+  - Use `@nx_publisher` and `@nx_subscriber` if you’re coming from a Pub/Sub background
+  - All aliases share the same underlying mechanics
+  - Use `@emitter`, `@listener`, `@signal`, `@slot`, `@publisher`, `@subscriber` interchangeably without prefix `nx_`
+- **Thread-Safe**: Automatic cross-thread invocation ensures concurrency safety
+- **asyncio-Friendly**: Support for both synchronous and asynchronous listeners
+- **Background Workers**: `@nx_with_worker` provides a dedicated event loop in a separate thread
+- **Weak Reference**: If you connect a listener with `weak=True`, the connection is removed automatically once the receiver is garbage-collected
 
 ### **Requires an Existing Event Loop**
 
-PynneX depends on Python’s `asyncio`. You **must** have a running event loop (e.g., `asyncio.run(...)`) for certain features like async slots or cross-thread calls.  
+PynneX depends on Python’s `asyncio`. You **must** have a running event loop (e.g., `asyncio.run(...)`) for certain features like async listeners or cross-thread calls.  
 If no event loop is running, PynneX raises a `RuntimeError` instead of creating one behind the scenes—this ensures predictable concurrency behavior.
 
 ## Installation
@@ -63,19 +65,57 @@ For development (includes tests and linting tools):
 pip install -e ".[dev]
 ```
 
-## Quick Hello (Signals/Slots)
+## Quick Hello (Emitters/Listeners)
 
-Here’s the simplest “Hello, Signals/Slots” example. Once installed, run the snippet below:
+Here’s the simplest “Hello, Emitters/Listeners” example. Once installed, run the snippet below:
 
 ```python
 # hello_pynnex.py
+from pynnex import with_emitters, emitter, listener
+
+@with_emitters
+class Greeter:
+    @emitter
+    def greet(self):
+        """Emitter emitted when greeting happens."""
+        pass
+
+    def say_hello(self):
+        self.greet.emit("Hello from PynneX!")
+
+@with_emitters
+class Printer:
+    @listener
+    def on_greet(self, message):
+        print(message)
+
+greeter = Greeter()
+printer = Printer()
+
+# Connect the emitter to the listener
+greeter.greet.connect(printer, printer.on_greet)
+
+# Fire the emitter
+greeter.say_hello()
+```
+
+**Output:**
+```
+Hello from PynneX!
+```
+
+By simply defining `emitter` and `listener`, you can set up intuitive event handling that also works smoothly in multithreaded contexts.
+
+If you come from a Qt background or prefer “signal-slot” naming, use:
+
+```python
 from pynnex import with_signals, signal, slot
 
 @with_signals
 class Greeter:
     @signal
     def greet(self):
-        """Signal emitted when greeting happens."""
+        """Signal that fires a greeting event."""
         pass
 
     def say_hello(self):
@@ -85,24 +125,32 @@ class Greeter:
 class Printer:
     @slot
     def on_greet(self, message):
-        print(message)
-
-greeter = Greeter()
-printer = Printer()
-
-# Connect the signal to the slot
-greeter.greet.connect(printer, printer.on_greet)
-
-# Fire the signal
-greeter.say_hello()
+        print(f"Received: {message}")
 ```
 
-**Output:**
-```
-Hello from PynneX!
+If you prefer a Pub/Sub style, use:
+
+```python
+from pynnex import with_signals, signal, slot
+
+@with_publishers
+class Greeter:
+    @publisher
+    def greet(self):
+        """Publisher that fires a greeting event."""
+        pass
+
+    def say_hello(self):
+        self.greet.emit("Hello from PynneX!")
+
+@with_subscribers
+class Printer:
+    @subscriber
+    def on_greet(self, message):
+        print(f"Received: {message}")
 ```
 
-By simply defining `signal` and `slot`, you can set up intuitive event handling that also works smoothly in multithreaded contexts.
+They’re all interchangeable aliases pointing to the same core functionality.
 
 ---
 
@@ -112,14 +160,14 @@ Below are some brief examples. For more, see the [docs/](https://github.com/nexc
 
 ### Basic Counter & Display
 ```python
-from pynnex import with_signals, signal, slot
+from pynnex import with_emitters, emitter, listener
 
-@with_signals
+@with_emitters
 class Counter:
     def __init__(self):
         self.count = 0
     
-    @signal
+    @emitter
     def count_changed(self):
         pass
     
@@ -127,9 +175,9 @@ class Counter:
         self.count += 1
         self.count_changed.emit(self.count)
 
-@with_signals
+@with_emitters
 class Display:
-    @slot
+    @listener
     async def on_count_changed(self, value):
         print(f"Count is now: {value}")
 
@@ -140,11 +188,11 @@ counter.count_changed.connect(display, display.on_count_changed)
 counter.increment()  # Will print: "Count is now: 1"
 ```
 
-### Asynchronous Slot Example
+### Asynchronous Listener Example
 ```python
-@with_signals
+@with_emitters
 class AsyncDisplay:
-    @slot
+    @listener
     async def on_count_changed(self, value):
         await asyncio.sleep(1)  # Simulate async operation
         print(f"Count updated to: {value}")
@@ -165,33 +213,33 @@ asyncio.run(main())
 
 ## Core Concepts
 
-### Signals and Slots
-- Signals: Declared with `@nx_signal`. Signals are attributes of a class that can be emitted to notify interested parties.
-- Slots: Declared with `@nx_slot`. Slots are methods that respond to signals. Slots can be synchronous or async functions.
-- Connections: Use `signal.connect(receiver, slot)` to link signals to slots. Connections can also be made directly to functions or lambdas.
+### Emitters and Listeners
+- Emitters: Declared with `@nx_emitter`. Emitters are attributes of a class that can be emitted to notify interested parties.
+- Listeners: Declared with `@nx_listener`. Listeners are methods that respond to emitters. Listeners can be synchronous or async functions.
+- Connections: Use `emitter.connect(receiver, listener)` to link emitters to listeners. Connections can also be made directly to functions or lambdas.
 
 ### Thread Safety and Connection Types
-PynneX automatically detects whether the signal emission and slot execution occur in the same thread or different threads:
+PynneX automatically detects whether the emitter emission and listener execution occur in the same thread or different threads:
 
-- **Auto Connection**: When connection_type is AUTO_CONNECTION (default), PynneX checks whether the slot is a coroutine function or whether the caller and callee share the same thread affinity. If they are the same thread and slot is synchronous, it uses direct connection. Otherwise, it uses queued connection.
-- **Direct Connection**: If signal and slot share the same thread affinity, the slot is invoked directly.
-- **Queued Connection**: If they differ, the call is queued to the slot’s thread/event loop, ensuring thread safety.
+- **Auto Connection**: When connection_type is AUTO_CONNECTION (default), PynneX checks whether the listener is a coroutine function or whether the caller and callee share the same thread affinity. If they are the same thread and listener is synchronous, it uses direct connection. Otherwise, it uses queued connection.
+- **Direct Connection**: If emitter and listener share the same thread affinity, the listener is invoked directly.
+- **Queued Connection**: If they differ, the call is queued to the listener’s thread/event loop, ensuring thread safety.
 
 This mechanism frees you from manually dispatching calls across threads.
 
 ### Thread-Safe Properties
-The `@nx_property` decorator provides thread-safe property access with automatic signal emission:
+The `@nx_property` decorator provides thread-safe property access with automatic emitter emission:
 
 ```python
-@with_signals
+@with_emitters
 class Example:
     def __init__(self):
         super().__init__()
         self._data = None
     
-    @signal
+    @emitter
     def updated(self):
-        """Signal emitted when data changes."""
+        """Emitter emitted when data changes."""
         pass
     
     @nx_property(notify=updated)
@@ -204,7 +252,7 @@ class Example:
         self._data = value
 
 e = Example()
-e.data = 42  # Thread-safe property set; emits 'updated' signal on change
+e.data = 42  # Thread-safe property set; emits 'updated' emitter on change
 ```
 
 ### Worker Threads
@@ -213,21 +261,21 @@ For background work, PynneX provides a `@nx_with_worker` decorator that:
 - Spawns a dedicated event loop in a worker thread.
 - Allows you to queue async tasks to this worker.
 - Enables easy start/stop lifecycle management.
-- Integrates with signals and slots for thread-safe updates to the main 
+- Integrates with emitters and listeners for thread-safe updates to the main 
 
 **Worker Example**
 ```python
-from pynnex import nx_with_worker, signal
+from pynnex import nx_with_worker, emitter
 
 @with_worker
 class DataProcessor:
-    @signal
+    @emitter
     def processing_done(self):
         """Emitted when processing completes"""
 
     async def run(self, *args, **kwargs):
         # The main entry point for the worker thread’s event loop
-        # Wait for tasks or stopping signal
+        # Wait for tasks or stopping emitter
         await self.wait_for_stop()
 
     async def process_data(self, data):
@@ -246,7 +294,7 @@ processor.stop()
 ```
 
 ## Documentation and Example
-- [Usage Guide](https://github.com/nexconnectio/pynnex/blob/main/docs/usage.md): Learn how to define signals/slots, manage threads, and structure your event-driven code.
+- [Usage Guide](https://github.com/nexconnectio/pynnex/blob/main/docs/usage.md): Learn how to define emitters/listeners, manage threads, and structure your event-driven code.
 - [API Reference](https://github.com/nexconnectio/pynnex/blob/main/docs/api.md): Detailed documentation of classes, decorators, and functions.
 - [Examples](https://github.com/nexconnectio/pynnex/blob/main/docs/examples.md): Practical use cases, including UI integration, async operations, and worker pattern usage.
 - [Logging Guidelines](https://github.com/nexconnectio/pynnex/blob/main/docs/logging.md): Configure logging levels and handlers for debugging.
@@ -264,7 +312,7 @@ For more details, see the [Logging Guidelines](https://github.com/nexconnectio/p
 
 ## Testing
 
-Pynnex uses `pytest` for testing:
+PynneX uses `pytest` for testing:
 
 ```bash
 # Run all tests
@@ -274,7 +322,7 @@ pytest
 pytest -v
 
 # Run specific test file
-pytest tests/unit/test_signal.py
+pytest tests/unit/test_emitter.py
 ```
 
 See the [Testing Guide](https://github.com/nexconnectio/pynnex/blob/main/docs/testing.md) for more details.

@@ -3,30 +3,46 @@
 # API Reference
 
 ## Requirements
-Pynnex requires Python 3.10 or higher, and a running `asyncio` event loop for any async usage.
+
+PynneX requires **Python 3.10** or higher, plus a running `asyncio` event loop for any async usage.
 
 ## Decorators
 
-For convenience, core decorators (`@nx_with_signals`, `@nx_signal`, `@nx_slot`, `@nx_with_worker`) are also available without the `nx_` prefix. You can use either form:
+For convenience, core decorators (`@nx_with_emitters`, `@nx_emitter`, `@nx_listener`, `@nx_with_worker`) are also available without the `nx_` prefix.
 
+You can use either form:
 ```python
-from pynnex import nx_with_signals, with_signals  # both work
-from pynnex import nx_signal, signal              # both work
-from pynnex import nx_slot, slot                  # both work
-from pynnex import nx_with_worker, worker        # both work
+from pynnex import nx_with_emitters, with_emitters  # both work
+from pynnex import nx_emitter, emitter             # both work
+from pynnex import nx_listener, listener           # both work
+from pynnex import nx_with_worker, worker          # both work
+
+# Qt-style
+from pynnex import with_signals, signal, slot
+
+# Pub/Sub style
+from pynnex import with_publishers, publisher, subscriber
 ```
 
 Note that `@nx_property` does not have a prefix-free alias to avoid conflicts with Python's built-in `@property` decorator.
 
-### `@nx_with_signals`
-Enables signal-slot functionality on a class. Classes decorated with `@nx_with_signals` can define signals and have their slots automatically assigned event loops and thread affinity.
+### `@nx_with_emitters`
 
-**Important**: `@nx_with_signals` expects that you already have an `asyncio` event loop running (e.g., via `asyncio.run(...)`) unless you only rely on synchronous slots in a single-thread scenario. When in doubt, wrap your main logic in an async function and call `asyncio.run(main())`.
+Aliases:
+- `@with_emitters`
+- `@with_signals`
+- `@with_publishers`
+
+Enables emitter-listener functionality on a class. Classes decorated with `@nx_with_emitters` can define emitters and have their listeners automatically assigned event loops and thread affinity.
+
+**Important**: `@nx_with_emitters` expects that you already have an `asyncio` event loop running (e.g., via `asyncio.run(...)`) unless you only rely on synchronous listeners in a single-thread scenario. When in doubt, wrap your main logic in an async function and call `asyncio.run(main())`.
 
 **Key Methods**:
 
-`move_to_thread(target_worker)`
-Moves the instance to another thread by copying thread affinity from a worker. This allows dynamic thread reassignment of signal-slot objects.
+```python
+move_to_thread(target_worker)
+```
+Moves the instance to another thread by copying thread affinity from a worker. This allows dynamic thread reassignment of emitter-listener objects.
 
 - **Parameters:**
   - **target_worker:** A worker instance decorated with `@nx_with_worker`. The instance will adopt this worker's thread affinity.
@@ -34,87 +50,82 @@ Moves the instance to another thread by copying thread affinity from a worker. T
   - **RuntimeError:** If the target worker's thread is not started.
   - **TypeError:** If the target is not compatible (not decorated with `@nx_with_worker`).
 
-**Example:**
+**Usage:**
+
 ```python
 @nx_with_worker
 class Worker:
     async def run(self):
         await self.wait_for_stop()
 
-@nx_with_signals
-class SignalEmitter:
-    @nx_signal
+@nx_with_emitters
+class Emitter:
+    @nx_emitter
     def value_changed(self):
         pass
 
 worker = Worker()
 worker.start()
 
-emitter = SignalEmitter()
+emitter = Emitter()
 emitter.move_to_thread(worker)  # Now emitter runs in worker's thread
 ```
 
-**Usage:**
-```python
-@nx_with_signals
-class MyClass:
-    @nx_signal
-    def my_signal(self):
-        pass
+### `@nx_emitter`
 
-**Usage:**
-```python
-@nx_with_signals
-class MyClass:
-    @nx_signal
-    def my_signal(self):
-        pass
-```
+Aliases:
+- Qt alias: `@signal`
+- Pub/Sub alias: `@publisher`
 
-### `@nx_signal`
-Defines a signal within a class that has `@nx_with_signals`. Signals are callable attributes that, when emitted, notify all connected slots.
+Defines an emitter within a class that has `@nx_with_emitters`. Emitters are callable attributes that, when emitted, notify all connected listeners.
 
 **Key Methods**:
 
 `emit(*args, **kwargs)`
-Emits the signal, invoking all connected slots with the provided arguments.
+Emits the emitter, invoking all connected listeners with the provided arguments.
 
 - **Parameters:**
-  - ***args:** Positional arguments to pass to the connected slots.
-  - ****kwargs:** Keyword arguments to pass to the connected slots.
+  - ***args:** Positional arguments to pass to the connected listeners.
+  - ****kwargs:** Keyword arguments to pass to the connected listeners.
 
 **Usage:**
 
 ```python
-@nx_signal
-def my_signal(self):
+@nx_emitter
+def my_emitter(self):
     pass
 
 # Emission
-self.my_signal.emit(value)
+self.my_emitter.emit(value)
 ```
 
-### `@nx_slot`
-Marks a method as a slot. Slots can be synchronous or asynchronous methods. Pynnex automatically handles cross-thread invocation—**but only if there is a running event loop**.  
+### `@nx_listener`
+
+Aliases:
+- Qt alias: `@slot`
+- Pub/Sub alias: `@subscriber`
+
+Marks a method as a listener. Listeners can be synchronous or asynchronous methods. PynneX automatically handles cross-thread invocation—**but only if there is a running event loop**.  
 
 **Usage:**
 
 ```python
-@nx_slot
-def on_my_signal(self, value):
+@nx_listener
+def on_my_emitter(self, value):
     print("Received:", value)
 
-@nx_slot
-async def on_async_signal(self, value):
+@nx_listener
+async def on_async_emitter(self, value):
     await asyncio.sleep(1)
     print("Async Received:", value)
 ```
 
 **Event Loop Requirement**:
-If the decorated slot is async, or if the slot might be called from another thread, Pynnex uses asyncio scheduling. That means a running event loop is mandatory. If no loop is found, a RuntimeError is raised.
+If the decorated listener is async, or if the listener might be called from another thread, PynneX uses asyncio scheduling. That means a running event loop is mandatory. If no loop is found, a RuntimeError is raised.
 
-### `@nx_with_worker`
-Decorates a class to run inside a dedicated worker thread with its own event loop. Ideal for offloading tasks without blocking the main thread. When using @nx_with_worker, the worker thread automatically sets up its own event loop, so calls within that worker are safe. For the main thread, you still need an existing loop if you plan on using async slots or cross-thread signals. The worker provides:
+### `@nx_with_worker`(aliases: `@with_worker`)
+
+Decorates a class to run inside a dedicated worker thread with its own event loop. Ideal for offloading tasks without blocking the main thread. When using @nx_with_worker, the worker thread automatically sets up its own event loop, so calls within that worker are safe. For the main thread, you still need an existing loop if you plan on using async listeners or cross-thread emitters. The worker provides:
 
 - A dedicated event loop in another thread.
 - The `run(*args, **kwargs)` coroutine as the main entry point.
@@ -149,7 +160,7 @@ To pass arguments to start(), ensure run() accepts *args, **kwargs.
 ```python
 @nx_with_worker
 class Worker:
-    @nx_signal
+    @nx_emitter
     def finished(self):
         pass
 
@@ -171,21 +182,23 @@ worker.stop()
 ```
 
 ### `nx_property`
-Creates a thread-safe property that can optionally notify a signal when the property’s value changes. Useful for ensuring that property access and mutation occur on the object's designated event loop, maintaining thread safety.
+
+Creates a thread-safe property that can optionally notify an emitter when the property’s value changes. Useful for ensuring that property access and mutation occur on the object's designated event loop, maintaining thread safety.
 
 **Key Points:**
 
 - `nx_property` can be used similarly to `property`, but wraps get/set operations in event loop calls if accessed from another thread.
-- If the `notify` parameter is set to a signal, that signal is emitted whenever the property value changes.
+- If the `notify` parameter is set to an emitter, that emitter is emitted whenever the property value changes.
 - Get and set operations from the "wrong" thread are automatically queued to the object's event loop, ensuring thread-safe access.
 
 **Usage:**
+
 ```python
 from pynnex.contrib.extensions.property import nx_property
 
-@nx_with_signals
+@nx_with_emitters
 class Model:
-    @nx_signal
+    @nx_emitter
     def value_changed(self):
         pass
 
@@ -203,82 +216,85 @@ print(model.value) # Also thread-safe
 ```
 
 ## Classes
-### `Pynnex`
-Represents a signal. Signals are created by `@nx_signal` and accessed as class attributes.
+### `NxEmitter`
+
+Represents an emitter. Emitters are created by `@nx_emitter` and accessed as class attributes.
 
 **Key Methods**:
 
-`connect(receiver_or_slot, slot=None, connection_type=NxConnectionType.AUTO_CONNECTION) -> None`
+`connect(receiver_or_listener, listener=None, connection_type=NxConnectionType.AUTO_CONNECTION) -> None`
 
-Connects the signal to a slot.
+Connects the emitter to a listener.
 
 - **Parameters:**
-  - **receiver_or_slot:** Either the receiver object and slot method, or just a callable (function/lambda) if slot is None.
-  - **slot:** The method in the receiver if a receiver object is provided.
+  - **receiver_or_listener:** Either the receiver object and listener method, or just a callable (function/lambda) if listener is None.
+  - **listener:** The method in the receiver if a receiver object is provided.
   - **connection_type:** DIRECT_CONNECTION, QUEUED_CONNECTION, or AUTO_CONNECTION.
-    - **AUTO_CONNECTION (default):** Determines connection type automatically based on thread affinity and slot type.
-  - **weak:** If `True`, the receiver is kept via a weak reference so it can be garbage collected once there are no strong references. The signal automatically removes the connection if the receiver is collected.
-  - **one_shot:** If `True`, the connection is automatically disconnected after the first successful emit call. This is useful for events that should only notify a slot once.
+    - **AUTO_CONNECTION (default):** Determines connection type automatically based on thread affinity and listener type.
+  - **weak:** If `True`, the receiver is kept via a weak reference so it can be garbage collected once there are no strong references. The emitter automatically removes the connection if the receiver is collected.
+  - **one_shot:** If `True`, the connection is automatically disconnected after the first successful emit call. This is useful for events that should only notify a listener once.
 
 **Examples:**
 
 ```python
 # AUTO_CONNECTION (default) decides connection type automatically
-signal.connect(receiver, receiver.on_signal)
+emitter.connect(receiver, receiver.on_emitter)
 
 # Force direct connection
-signal.connect(receiver, receiver.on_signal, connection_type=NxConnectionType.DIRECT_CONNECTION)
+emitter.connect(receiver, receiver.on_emitter, connection_type=NxConnectionType.DIRECT_CONNECTION)
 
 # Force queued connection
-signal.connect(receiver, receiver.on_signal, connection_type=NxConnectionType.QUEUED_CONNECTION)
+emitter.connect(receiver, receiver.on_emitter, connection_type=NxConnectionType.QUEUED_CONNECTION)
 
 # Connect to a standalone function
-signal.connect(print)
+emitter.connect(print)
 ```
 
-`disconnect(receiver=None, slot=None) -> int`
+`disconnect(receiver=None, listener=None) -> int`
 
-Disconnects a previously connected slot. Returns the number of disconnected connections.
+Disconnects a previously connected listener. Returns the number of disconnected connections.
 
 - **Parameters:**
-  - receiver: The object whose slot is connected. If receiver is None, all receivers are considered.
-  - slot: The specific slot to disconnect from the signal. If slot is None, all slots for the given receiver (or all connections if receiver is also None) are disconnected.
+  - receiver: The object whose listener is connected. If receiver is None, all receivers are considered.
+  - listener: The specific listener to disconnect from the emitter. If listener is None, all listeners for the given receiver (or all connections if receiver is also None) are disconnected.
 - **Returns:** The number of connections that were disconnected.- 
 
 **Examples:**
 ```python
 # Disconnect all connections
-signal.disconnect()
+emitter.disconnect()
 
-# Disconnect all slots from a specific receiver
-signal.disconnect(receiver=my_receiver)
+# Disconnect all listeners from a specific receiver
+emitter.disconnect(receiver=my_receiver)
 
-# Disconnect a specific slot from a specific receiver
-signal.disconnect(receiver=my_receiver, slot=my_receiver.some_slot)
+# Disconnect a specific listener from a specific receiver
+emitter.disconnect(receiver=my_receiver, listener=my_receiver.some_listener)
 
 # Disconnect a standalone function
-signal.disconnect(slot=my_function)
+emitter.disconnect(listener=my_function)
 ```
 
 `emit(*args, **kwargs) -> None`
 
-Emits the signal, invoking all connected slots either directly or via the event loop of the slot’s associated thread, depending on the connection type. If a connection is marked one_shot, it is automatically removed right after invocation.
+Emits the emitter, invoking all connected listeners either directly or via the event loop of the listener’s associated thread, depending on the connection type. If a connection is marked one_shot, it is automatically removed right after invocation.
 
 `NxConnectionType`
 
-Defines how a slot is invoked relative to the signal emitter’s thread.
+Defines how a listener is invoked relative to the emitter’s thread.
 
-- `DIRECT_CONNECTION`: The slot is called immediately in the emitter's thread.
-- `QUEUED_CONNECTION`: The slot invocation is queued in the slot's thread/event loop.
-- `AUTO_CONNECTION`: Automatically chooses direct or queued based on thread affinity and slot type (sync/async).
+- `DIRECT_CONNECTION`: The listener is called immediately in the emitter's thread.
+- `QUEUED_CONNECTION`: The listener invocation is queued in the listener's thread/event loop.
+- `AUTO_CONNECTION`: Automatically chooses direct or queued based on thread affinity and listener type (sync/async).
 
 ## Asynchronous Support
-Slots can be async. When a signal with an async slot is emitted:
-- The slot runs on the event loop associated with that slot.
-- `AUTO_CONNECTION` typically results in queued connections for async slots.
-- `emit()` returns immediately; slots run asynchronously without blocking the caller.
+
+Listeners can be async. When an emitter with an async listener is emitted:
+- The listener runs on the event loop associated with that listener.
+- `AUTO_CONNECTION` typically results in queued connections for async listeners.
+- `emit()` returns immediately; listeners run asynchronously without blocking the caller.
 
 ## Worker Threads
+
 - `@nx_with_worker` provides a dedicated thread and event loop.
 - `run(*args, **kwargs)` defines the worker’s main logic.
 - `queue_task(coro)` schedules coroutines on the worker's event loop.
@@ -291,23 +307,25 @@ Slots can be async. When a signal with an async slot is emitted:
 - Passing parameters to `start()` must align with `run()`’s signature.
 
 ## Error Handling
-- `TypeError`: If slot is not callable or signature issues occur.
+
+- `TypeError`: If listener is not callable or signature issues occur.
 - `RuntimeError`: If no event loop is available for async operations.
-- `AttributeError`: If connecting to a nonexistent slot or missing receiver.
+- `AttributeError`: If connecting to a nonexistent listener or missing receiver.
 
 ## Examples
-**Basic Signal-Slot**
+
+**Basic Emitter-Listener**
 
 ```python
-@nx_with_signals
+@nx_with_emitters
 class Sender:
-    @nx_signal
+    @nx_emitter
     def value_changed(self):
         pass
 
-@nx_with_signals
+@nx_with_emitters
 class Receiver:
-    @nx_slot
+    @nx_listener
     def on_value_changed(self, value):
         print("Value:", value)
 
@@ -317,12 +335,12 @@ sender.value_changed.connect(receiver, receiver.on_value_changed)
 sender.value_changed.emit(100)
 ```
 
-**Async Slot**
+**Async Listener**
 
 ```python
-@nx_with_signals
+@nx_with_emitters
 class AsyncReceiver:
-    @nx_slot
+    @nx_listener
     async def on_value_changed(self, value):
         await asyncio.sleep(1)
         print("Async Value:", value)
@@ -339,7 +357,7 @@ sender.value_changed.emit(42)
 ```python
 @nx_with_worker
 class BackgroundWorker:
-    @nx_signal
+    @nx_emitter
     def task_done(self):
         pass
 
@@ -360,9 +378,9 @@ worker.stop()
 **Thread-Safe Property with Notification**
 
 ```python
-@nx_with_signals
+@nx_with_emitters
 class Model:
-    @nx_signal
+    @nx_emitter
     def value_changed(self):
         pass
 
@@ -377,4 +395,3 @@ class Model:
 model = Model()
 model.value = 42  # If called from another thread, it's queued safely
 ```
-

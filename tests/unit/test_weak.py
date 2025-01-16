@@ -9,7 +9,7 @@ import logging
 import weakref
 import pytest
 
-from pynnex import with_signals, signal
+from pynnex import with_emitters, emitter
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ class WeakRefReceiver:
     def __init__(self):
         self.called = False
 
-    def on_signal(self, value):
+    def on_emitter(self, value):
         """
         Event handler.
         """
@@ -31,16 +31,16 @@ class WeakRefReceiver:
         print(f"WeakRefReceiver got value: {value}")
 
 
-@with_signals(weak_default=True)
+@with_emitters(weak_default=True)
 class Sender:
     """
     A class that sends weak reference events.
     """
 
-    @signal
+    @emitter
     def event(self):
         """
-        Event signal.
+        Event emitter.
         """
 
 
@@ -56,7 +56,7 @@ class Receiver:
 
         self.called = False
 
-    def on_signal(self, value):
+    def on_emitter(self, value):
         """
         Event handler.
         """
@@ -65,16 +65,16 @@ class Receiver:
         print(f"StrongRefReceiver got value: {value}")
 
 
-@with_signals(weak_default=True)
+@with_emitters(weak_default=True)
 class MixedSender:
     """
     A class that sends mixed reference events.
     """
 
-    @signal
+    @emitter
     def event(self, value):
         """
-        Event signal.
+        Event emitter.
         """
 
 
@@ -87,7 +87,7 @@ async def test_weak_default_connection():
     receiver = Receiver()
 
     # connect without specifying weak, should use weak_default=True
-    sender.event.connect(receiver, receiver.on_signal)
+    sender.event.connect(receiver, receiver.on_emitter)
 
     sender.event.emit(42)
     assert receiver.called, "Receiver should be called when alive"
@@ -101,6 +101,7 @@ async def test_weak_default_connection():
 
     assert True, "No exception emitted, weak ref disconnected automatically"
 
+
 @pytest.mark.asyncio
 async def test_override_weak_false():
     """
@@ -109,7 +110,7 @@ async def test_override_weak_false():
     sender = MixedSender()
     receiver = Receiver()
 
-    sender.event.connect(receiver, receiver.on_signal, weak=False)
+    sender.event.connect(receiver, receiver.on_emitter, weak=False)
 
     sender.event.emit(10)
     assert receiver.called, "Receiver called with strong ref"

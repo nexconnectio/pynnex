@@ -7,7 +7,7 @@
 """
 Stock monitor UI example.
 
-Demonstrates integrating PynneX-based signals/slots into a Kivy GUI application.
+Demonstrates integrating PynneX-based emitters/listeners into a Kivy GUI application.
 It showcases a real-time price update loop (`StockService`), an alert/processing
 component (`StockProcessor`), and a Kivy-based front-end (`StockView`) for
 visualizing and setting stock alerts, all running asynchronously.
@@ -34,12 +34,6 @@ from pynnex import with_signals, slot
 logger = logger_setup(__name__)
 logger_setup("pynnex")
 logger_setup("stock_core")
-
-logger.info(
-    "pynnex.getEffectiveLevel: %s", logging.getLogger("pynnex").getEffectiveLevel()
-)
-logger.info("pynnex.level: %s", logging.getLogger("pynnex").level)
-logger.info("root.level: %s", logging.getLogger().level)
 
 
 @with_signals
@@ -135,7 +129,7 @@ class StockView(BoxLayout):
     @slot
     def on_alert_added(self, code: str, alert_type: str, price: float):
         """
-        Slot for handling newly triggered alerts.
+        Listener for handling newly triggered alerts.
 
         Updates the `alert_label` in the UI to inform the user about the alert.
         """
@@ -148,7 +142,7 @@ class AsyncKivyApp(App):
     A Kivy application that integrates with asyncio for background tasks.
 
     This class sets up the UI (`StockView`), the stock service, processor,
-    and view model, and wires them together with signals/slots. It also provides
+    and view model, and wires them together with emitters/listeners. It also provides
     a background task that keeps the UI responsive and handles graceful shutdown.
     """
 
@@ -165,7 +159,7 @@ class AsyncKivyApp(App):
 
     def build(self):
         """
-        Build the UI layout, connect signals, and initialize the main components.
+        Build the UI layout, connect emitters, and initialize the main components.
         """
 
         self.view = StockView()
@@ -174,7 +168,7 @@ class AsyncKivyApp(App):
         self.processor = StockProcessor()
         self.viewmodel = StockViewModel()
 
-        # Connect signals
+        # Connect emitters
         self.service.price_updated.connect(
             self.processor, self.processor.on_price_updated
         )
@@ -183,7 +177,7 @@ class AsyncKivyApp(App):
         )
         self.viewmodel.prices_updated.connect(self.view, self.view.update_prices)
 
-        # Alert related signals
+        # Alert related emitters
         self.processor.alert_triggered.connect(
             self.viewmodel, self.viewmodel.on_alert_triggered
         )
@@ -192,7 +186,7 @@ class AsyncKivyApp(App):
         )
         self.viewmodel.alert_added.connect(self.view, self.view.on_alert_added)
 
-        # Alert setting/removal signals
+        # Alert setting/removal emitters
         self.viewmodel.set_alert.connect(
             self.processor, self.processor.on_set_price_alert
         )

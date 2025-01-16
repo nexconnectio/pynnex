@@ -12,14 +12,14 @@ import threading
 import time
 import logging
 import pytest
-from pynnex import with_signals, signal, slot
+from pynnex import with_emitters, emitter, listener
 
 logger = logging.getLogger(__name__)
 
 
 @pytest.mark.asyncio
 async def test_different_thread_connection(sender, receiver):
-    """Test signal emission from different thread"""
+    """Test emitter emission from different thread"""
 
     sender.value_changed.connect(receiver, receiver.on_value_changed)
     sender_done = threading.Event()
@@ -44,8 +44,8 @@ async def test_different_thread_connection(sender, receiver):
 
 
 @pytest.mark.asyncio
-async def test_call_slot_from_other_thread(receiver):
-    """Test calling slot from different thread"""
+async def test_call_listener_from_other_thread(receiver):
+    """Test calling listener from different thread"""
 
     done = threading.Event()
 
@@ -55,10 +55,10 @@ async def test_call_slot_from_other_thread(receiver):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
 
-        async def call_slot():
+        async def call_listener():
             await receiver.on_value_changed(100)
 
-        loop.run_until_complete(call_slot())
+        loop.run_until_complete(call_listener())
         done.set()
         loop.close()
 
@@ -77,15 +77,15 @@ async def test_call_slot_from_other_thread(receiver):
 async def test_connection_type_with_different_threads():
     """Test connection type is determined correctly for different thread scenarios"""
 
-    @with_signals
+    @with_emitters
     class Sender:
         """Sender class"""
 
-        @signal
+        @emitter
         def value_changed(self):
-            """Signal emitted when value changes"""
+            """Emitter emitted when value changes"""
 
-    @with_signals
+    @with_emitters
     class Receiver:
         """Receiver class"""
 
@@ -93,9 +93,9 @@ async def test_connection_type_with_different_threads():
             super().__init__()
             self.received = False
 
-        @slot
+        @listener
         def on_value_changed(self, value):
-            """Slot called when value changes"""
+            """Listener called when value changes"""
 
             self.received = True
 
@@ -150,7 +150,7 @@ async def test_connection_type_with_different_threads():
 
     assert (
         receiver_in_thread.received is True
-    ), "Slot should be triggered asynchronously (queued)"
+    ), "Listener should be triggered asynchronously (queued)"
 
     receiver_stop_loop_event.set()
     receiver_thread.join()

@@ -2,8 +2,11 @@
 
 # Testing Guide
 
+## Requirements
+PynneX requires **Python 3.10** or higher, plus a running `asyncio` event loop for any async usage. 
+
 ## Overview
-Pynnex requires Python 3.10 or higher and uses pytest for testing. Our test suite includes unit tests, integration tests, performance tests, and supports async testing.
+Our test suite includes unit tests, integration tests, performance tests, and supports async testing.
 
 ## Test Structure
 ```
@@ -13,16 +16,16 @@ tests/
 ├── unit/               # Unit tests
 │   ├── __init__.py
 │   ├── test_property.py
-│   ├── test_signal.py
-│   ├── test_slot.py
+│   ├── test_emitter.py
+│   ├── test_listener.py
 │   ├── test_utils.py
 │   └── test_weak.py
 ├── integration/        # Integration tests
 │   ├── __init__.py
 │   ├── test_async.py
 │   ├── test_threading.py
-│   ├── test_with_signals.py
-│   ├── test_worker_signal.py
+│   ├── test_with_emitters.py
+│   ├── test_worker_emitter.py
 │   ├── test_worker_queue.py
 │   └── test_worker.py
 └── performance/        # Performance and stress tests
@@ -48,10 +51,10 @@ pytest -vv
 pytest -s
 
 # Run specific test file
-pytest tests/unit/test_signal.py
+pytest tests/unit/test_emitter.py
 
 # Run specific test case
-pytest tests/unit/test_signal.py -k "test_signal_disconnect_all"
+pytest tests/unit/test_emitter.py -k "test_emitter_disconnect_all"
 
 # Run tests by marker
 pytest -v -m asyncio
@@ -77,10 +80,10 @@ To enable debug logging during tests:
 ```bash
 # Windows
 set PYNNEX_DEBUG=1
-pytest tests/unit/test_signal.py -v
+pytest tests/unit/test_emitter.py -v
 
 # Linux/Mac
-PYNNEX_DEBUG=1 pytest tests/unit/test_signal.py -v
+PYNNEX_DEBUG=1 pytest tests/unit/test_emitter.py -v
 ```
 
 ### Test Coverage

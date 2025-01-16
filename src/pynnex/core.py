@@ -7,9 +7,9 @@
 # pylint: disable=too-many-positional-arguments
 
 """
-Implementation of the Signal class for pynnex.
+Implementation of the Emitter class for pynnex.
 
-Provides signal-slot communication pattern for event handling, supporting both
+Provides emitter-listener communication pattern for event handling, supporting both
 synchronous and asynchronous operations in a thread-safe manner.
 """
 
@@ -28,14 +28,14 @@ from typing import Callable, Optional
 from pynnex.utils import nx_log_and_raise_error
 
 logger = logging.getLogger("pynnex")
-logger_signal = logging.getLogger("pynnex.signal")
-logger_slot = logging.getLogger("pynnex.slot")
-logger_signal_trace = logging.getLogger("pynnex.signal.trace")
-logger_slot_trace = logging.getLogger("pynnex.slot.trace")
+logger_emitter = logging.getLogger("pynnex.emitter")
+logger_listener = logging.getLogger("pynnex.listener")
+logger_emitter_trace = logging.getLogger("pynnex.emitter.trace")
+logger_listener_trace = logging.getLogger("pynnex.listener.trace")
 
 
-class NxSignalConstants:
-    """Constants for signal-slot communication."""
+class NxEmitterConstants:
+    """Constants for emitter-listener communication."""
 
     FROM_EMIT = "_nx_from_emit"
     THREAD = "_nx_thread"
@@ -44,7 +44,7 @@ class NxSignalConstants:
     WEAK_DEFAULT = "_nx_weak_default"
 
 
-_nx_from_emit = contextvars.ContextVar(NxSignalConstants.FROM_EMIT, default=False)
+_nx_from_emit = contextvars.ContextVar(NxEmitterConstants.FROM_EMIT, default=False)
 
 
 def _get_func_name(func):
@@ -55,7 +55,7 @@ def _get_func_name(func):
 
 
 class NxConnectionType(Enum):
-    """Connection type for signal-slot connections."""
+    """Connection type for emitter-listener connections."""
 
     DIRECT_CONNECTION = 1
     QUEUED_CONNECTION = 2
@@ -64,12 +64,12 @@ class NxConnectionType(Enum):
 
 @dataclass
 class NxConnection:
-    """Connection class for signal-slot connections."""
+    """Connection class for emitter-listener connections."""
 
     receiver_ref: Optional[object]
-    slot_func: Callable
+    listener_func: Callable
     conn_type: NxConnectionType
-    is_coro_slot: bool
+    is_coro_listener: bool
     is_bound: bool
     is_weak: bool
     is_one_shot: bool = False
@@ -89,27 +89,27 @@ class NxConnection:
 
         return True
 
-    def get_slot_to_call(self):
+    def get_listener_to_call(self):
         """
-        Return the slot to call at emit time.
+        Return the listener to call at emit time.
         For weakref bound method connections, reconstruct the bound method after recovering the receiver.
         For strong reference, it's already a bound method, so return it directly.
         For standalone functions, return them directly.
         """
 
-        if self.is_weak and isinstance(self.slot_func, WeakMethod):
-            real_method = self.slot_func()
+        if self.is_weak and isinstance(self.listener_func, WeakMethod):
+            real_method = self.listener_func()
             return real_method
 
         if not self.is_bound:
-            return self.slot_func
+            return self.listener_func
 
         receiver = self.get_receiver()
         if receiver is None:
             return None
 
         # bound + weak=False or bound + weak=True (already not a WeakMethod) case
-        return self.slot_func
+        return self.listener_func
 
 
 def _wrap_standalone_function(func, is_coroutine):
@@ -130,7 +130,7 @@ def _wrap_standalone_function(func, is_coroutine):
                     RuntimeError,
                     (
                         "No running event loop found. "
-                        "A running loop is required for coroutine slots."
+                        "A running loop is required for coroutine listeners."
                     ),
                 )
 
@@ -139,7 +139,7 @@ def _wrap_standalone_function(func, is_coroutine):
     return wrap
 
 
-def _determine_connection_type(conn_type, receiver, owner, is_coro_slot):
+def _determine_connection_type(conn_type, receiver, owner, is_coro_listener):
     """
     Determine the actual connection type based on the given parameters.
     This logic was originally inside emit, but is now extracted for easier testing.
@@ -147,20 +147,20 @@ def _determine_connection_type(conn_type, receiver, owner, is_coro_slot):
     actual_conn_type = conn_type
 
     if conn_type == NxConnectionType.AUTO_CONNECTION:
-        if is_coro_slot:
+        if is_coro_listener:
             actual_conn_type = NxConnectionType.QUEUED_CONNECTION
             logger.debug(
-                "Connection determined: type=%s, reason=is_coro_slot_and_has_receiver",
+                "Connection determined: type=%s, reason=is_coro_listener_and_has_receiver",
                 actual_conn_type,
             )
         else:
             receiver = receiver() if isinstance(receiver, weakref.ref) else receiver
 
             is_receiver_valid = receiver is not None
-            has_thread = hasattr(receiver, NxSignalConstants.THREAD)
-            has_affinity = hasattr(receiver, NxSignalConstants.AFFINITY)
-            has_owner_thread = hasattr(owner, NxSignalConstants.THREAD)
-            has_owner_affinity = hasattr(owner, NxSignalConstants.AFFINITY)
+            has_thread = hasattr(receiver, NxEmitterConstants.THREAD)
+            has_affinity = hasattr(receiver, NxEmitterConstants.AFFINITY)
+            has_owner_thread = hasattr(owner, NxEmitterConstants.THREAD)
+            has_owner_affinity = hasattr(owner, NxEmitterConstants.AFFINITY)
 
             if (
                 is_receiver_valid
@@ -200,14 +200,14 @@ def _determine_connection_type(conn_type, receiver, owner, is_coro_slot):
 def _extract_unbound_function(callable_obj):
     """
     Extract the unbound function from a bound method.
-    If the slot is a bound method, return the unbound function (__func__), otherwise return the slot as is.
+    If the listener is a bound method, return the unbound function (__func__), otherwise return the listener as is.
     """
 
     return getattr(callable_obj, "__func__", callable_obj)
 
 
-class NxSignal:
-    """Signal class for pynnex."""
+class NxEmitter:
+    """Emitter class for pynnex."""
 
     def __init__(self):
         self.connections = []
@@ -216,21 +216,21 @@ class NxSignal:
 
     def connect(
         self,
-        receiver_or_slot,
-        slot=None,
+        receiver_or_listener,
+        listener=None,
         conn_type=NxConnectionType.AUTO_CONNECTION,
         weak=None,
         one_shot=False,
     ):
         """
-        Connect this signal to a slot (callable).
+        Connect this emitter to a listener (callable).
 
         Parameters
         ----------
-        receiver_or_slot : object or callable
-            Receiver object or callable slot.
-        slot : callable, optional
-            Method to connect when receiver_or_slot is an object.
+        receiver_or_listener : object or callable
+            Receiver object or callable listener.
+        listener : callable, optional
+            Method to connect when receiver_or_listener is an object.
         conn_type : NxConnectionType, optional
             Connection type (AUTO, DIRECT, or QUEUED).
         weak : bool, optional
@@ -241,63 +241,69 @@ class NxSignal:
         Raises
         ------
         TypeError
-            If slot is not callable.
+            If listener is not callable.
         AttributeError
-            If receiver is None with slot provided.
+            If receiver is None with listener provided.
         ValueError
         """
 
         logger.debug(
-            "Signal connection: class=%s, receiver=%s, slot=%s",
+            "Emitter connection: class=%s, receiver=%s, listener=%s",
             self.__class__.__name__,
-            getattr(receiver_or_slot, "__name__", str(receiver_or_slot)),
-            getattr(slot, "__name__", str(slot)),
+            getattr(receiver_or_listener, "__name__", str(receiver_or_listener)),
+            getattr(listener, "__name__", str(listener)),
         )
 
         if weak is None and self.owner is not None:
-            weak = getattr(self.owner, NxSignalConstants.WEAK_DEFAULT, False)
+            weak = getattr(self.owner, NxEmitterConstants.WEAK_DEFAULT, False)
 
-        if slot is None:
-            if not callable(receiver_or_slot):
+        if listener is None:
+            if not callable(receiver_or_listener):
                 nx_log_and_raise_error(
                     logger,
                     TypeError,
-                    "receiver_or_slot must be callable.",
+                    "receiver_or_listener must be callable.",
                 )
 
             receiver = None
-            is_bound_method = hasattr(receiver_or_slot, "__self__")
-            maybe_slot = (
-                receiver_or_slot.__func__ if is_bound_method else receiver_or_slot
+            is_bound_method = hasattr(receiver_or_listener, "__self__")
+            maybe_listener = (
+                receiver_or_listener.__func__
+                if is_bound_method
+                else receiver_or_listener
             )
-            is_coro_slot = asyncio.iscoroutinefunction(maybe_slot)
+            is_coro_listener = asyncio.iscoroutinefunction(maybe_listener)
 
             if is_bound_method:
-                obj = receiver_or_slot.__self__
+                obj = receiver_or_listener.__self__
 
-                if hasattr(obj, NxSignalConstants.THREAD) and hasattr(
-                    obj, NxSignalConstants.LOOP
+                if hasattr(obj, NxEmitterConstants.THREAD) and hasattr(
+                    obj, NxEmitterConstants.LOOP
                 ):
                     receiver = obj
-                    slot = receiver_or_slot
+                    listener = receiver_or_listener
                 else:
-                    slot = _wrap_standalone_function(receiver_or_slot, is_coro_slot)
+                    listener = _wrap_standalone_function(
+                        receiver_or_listener, is_coro_listener
+                    )
             else:
-                slot = _wrap_standalone_function(receiver_or_slot, is_coro_slot)
+                listener = _wrap_standalone_function(
+                    receiver_or_listener, is_coro_listener
+                )
         else:
-            # when both receiver and slot are provided
-            if receiver_or_slot is None:
+            # when both receiver and listener are provided
+            if receiver_or_listener is None:
                 nx_log_and_raise_error(
                     logger,
                     AttributeError,
                     "Receiver cannot be None.",
                 )
 
-            if not callable(slot):
-                nx_log_and_raise_error(logger, TypeError, "Slot must be callable.")
+            if not callable(listener):
+                nx_log_and_raise_error(logger, TypeError, "Listener must be callable.")
 
-            receiver = receiver_or_slot
-            is_coro_slot = asyncio.iscoroutinefunction(slot)
+            receiver = receiver_or_listener
+            is_coro_listener = asyncio.iscoroutinefunction(listener)
 
         # when conn_type is AUTO, it is not determined here.
         # it is determined at emit time, so it is just stored.
@@ -311,19 +317,19 @@ class NxSignal:
             nx_log_and_raise_error(logger, ValueError, "Invalid connection type.")
 
         is_bound = False
-        bound_self = getattr(slot, "__self__", None)
+        bound_self = getattr(listener, "__self__", None)
 
         if bound_self is not None:
             is_bound = True
 
             if weak and receiver is not None:
-                wm = WeakMethod(slot)
+                wm = WeakMethod(listener)
                 receiver_ref = weakref.ref(bound_self, self._cleanup_on_ref_dead)
                 conn = NxConnection(
                     receiver_ref,
                     wm,
                     conn_type,
-                    is_coro_slot,
+                    is_coro_listener,
                     is_bound=True,
                     is_weak=True,
                     is_one_shot=one_shot,
@@ -332,9 +338,9 @@ class NxSignal:
                 # strong ref
                 conn = NxConnection(
                     bound_self,
-                    slot,
+                    listener,
                     conn_type,
-                    is_coro_slot,
+                    is_coro_listener,
                     is_bound,
                     False,
                     one_shot,
@@ -344,9 +350,9 @@ class NxSignal:
             # weak not applied to function itself, since no receiver
             conn = NxConnection(
                 None,
-                slot,
+                listener,
                 conn_type,
-                is_coro_slot,
+                is_coro_listener,
                 is_bound=False,
                 is_weak=False,
                 is_one_shot=one_shot,
@@ -378,16 +384,16 @@ class NxSignal:
                 after_count,
             )
 
-    def disconnect(self, receiver: object = None, slot: Callable = None) -> int:
+    def disconnect(self, receiver: object = None, listener: Callable = None) -> int:
         """
-        Disconnects slots from the signal.
+        Disconnects listeners from the emitter.
 
         Parameters
         ----------
         receiver : object, optional
             Receiver object to disconnect. If None, matches any receiver.
-        slot : Callable, optional
-            Slot to disconnect. If None, matches any slot.
+        listener : Callable, optional
+            Listener to disconnect. If None, matches any listener.
 
         Returns
         -------
@@ -396,13 +402,13 @@ class NxSignal:
 
         Notes
         -----
-        If neither receiver nor slot is specified, all connections are removed.
-        If only one is specified, matches any connection with that receiver or slot.
-        If both are specified, matches connections with both that receiver and slot.
+        If neither receiver nor listener is specified, all connections are removed.
+        If only one is specified, matches any connection with that receiver or listener.
+        If both are specified, matches connections with both that receiver and listener.
         """
 
         with self.connections_lock:
-            if receiver is None and slot is None:
+            if receiver is None and listener is None:
                 count = len(self.connections)
                 self.connections.clear()
                 return count
@@ -410,9 +416,9 @@ class NxSignal:
             original_count = len(self.connections)
             new_connections = []
 
-            # When disconnecting, if the slot_func is a WeakMethod, it must also be processed,
+            # When disconnecting, if the listener_func is a WeakMethod, it must also be processed,
             # so real_method is obtained and compared.
-            slot_unbound = _extract_unbound_function(slot) if slot else None
+            listener_unbound = _extract_unbound_function(listener) if listener else None
 
             for conn in self.connections:
                 conn_receiver = conn.get_receiver()
@@ -420,33 +426,35 @@ class NxSignal:
                 # If receiver is None, accept unconditionally, otherwise compare conn_receiver == receiver
                 receiver_match = receiver is None or conn_receiver == receiver
 
-                # If slot is None, accept unconditionally, otherwise compare unboundfunc
-                if slot_unbound is None:
-                    slot_match = True
+                # If listener is None, accept unconditionally, otherwise compare unboundfunc
+                if listener_unbound is None:
+                    listener_match = True
                 else:
-                    if isinstance(conn.slot_func, WeakMethod):
+                    if isinstance(conn.listener_func, WeakMethod):
                         # Get the actual method from WeakMethod
-                        real_method = conn.slot_func()
+                        real_method = conn.listener_func()
 
                         if real_method is None:
-                            # The method has already disappeared -> consider it as slot_match (can be disconnected)
-                            slot_match = True
+                            # The method has already disappeared -> consider it as listener_match (can be disconnected)
+                            listener_match = True
                         else:
-                            slot_match = (
-                                _extract_unbound_function(real_method) == slot_unbound
+                            listener_match = (
+                                _extract_unbound_function(real_method)
+                                == listener_unbound
                                 or getattr(real_method, "__wrapped__", None)
-                                == slot_unbound
+                                == listener_unbound
                             )
                     else:
                         # General function or bound method
-                        slot_match = (
-                            _extract_unbound_function(conn.slot_func) == slot_unbound
-                            or getattr(conn.slot_func, "__wrapped__", None)
-                            == slot_unbound
+                        listener_match = (
+                            _extract_unbound_function(conn.listener_func)
+                            == listener_unbound
+                            or getattr(conn.listener_func, "__wrapped__", None)
+                            == listener_unbound
                         )
 
                 # Both True means this conn is a target for disconnection, otherwise keep
-                if receiver_match and slot_match:
+                if receiver_match and listener_match:
                     continue
 
                 new_connections.append(conn)
@@ -457,33 +465,33 @@ class NxSignal:
 
     def emit(self, *args, **kwargs):
         """
-        Emit the signal with the specified arguments.
+        Emit the emitter with the specified arguments.
 
         Parameters
         ----------
         *args : Any
-            Positional arguments for connected slots.
+            Positional arguments for connected listeners.
         **kwargs : Any
-            Keyword arguments for connected slots.
+            Keyword arguments for connected listeners.
 
         Notes
         -----
-        - One-shot slots are disconnected after first invocation
+        - One-shot listeners are disconnected after first invocation
         - Weak references are cleaned up if receivers are gone
-        - Async slots use queued connections in AUTO mode
-        - Exceptions in slots are logged but don't stop emission
+        - Async listeners use queued connections in AUTO mode
+        - Exceptions in listeners are logged but don't stop emission
         """
 
         if logger.isEnabledFor(logging.DEBUG):
-            # Signal meta info
-            signal_name = getattr(self, "signal_name", "<anonymous>")
+            # Emitter meta info
+            emitter_name = getattr(self, "emitter_name", "<anonymous>")
             owner_class = type(self.owner).__name__ if self.owner else "<no_owner>"
             thread_name = threading.current_thread().name
             payload_repr = f"args={args}, kwargs={kwargs}"
 
             logger.debug(
-                "Signal emit started: name=%s, owner=%s, thread=%s, payload=%s",
-                signal_name,
+                "Emitter emit started: name=%s, owner=%s, thread=%s, payload=%s",
+                emitter_name,
                 owner_class,
                 thread_name,
                 payload_repr,
@@ -491,26 +499,26 @@ class NxSignal:
 
             start_ts = time.monotonic()
 
-        if logger_signal_trace.isEnabledFor(logging.DEBUG):
+        if logger_emitter_trace.isEnabledFor(logging.DEBUG):
             connections_info = []
             if hasattr(self, "connections"):
                 for i, conn in enumerate(self.connections):
                     connections_info.append(
                         f"    #{i}: type={type(conn.receiver_ref)}, "
                         f"alive={conn.get_receiver() is not None}, "
-                        f"slot={conn.slot_func}"
+                        f"listener={conn.listener_func}"
                     )
 
             trace_msg = (
-                "Signal Trace:\n"
-                f"  name: {getattr(self, 'signal_name', '<anonymous>')}\n"
+                "Emitter Trace:\n"
+                f"  name: {getattr(self, 'emitter_name', '<anonymous>')}\n"
                 f"  owner: {self.owner}\n"
                 f"  connections ({len(self.connections)}):\n"
                 "{}".format(
                     "\n".join(
                         f"    #{i}: type={type(conn.receiver_ref)}, "
                         f"alive={conn.get_receiver() is not None}, "
-                        f"slot={_get_func_name(conn.slot_func)}"
+                        f"listener={_get_func_name(conn.listener_func)}"
                         for i, conn in enumerate(self.connections)
                     )
                     if self.connections
@@ -518,7 +526,7 @@ class NxSignal:
                 )
             )
 
-            logger_signal_trace.debug(trace_msg)
+            logger_emitter_trace.debug(trace_msg)
 
         token = _nx_from_emit.set(True)
 
@@ -535,17 +543,22 @@ class NxSignal:
                             self.connections.remove(conn)
                     continue
 
-                slot_to_call = conn.get_slot_to_call()
+                listener_to_call = conn.get_listener_to_call()
 
-                if slot_to_call is None:
+                if listener_to_call is None:
                     # Unable to call bound method due to receiver GC or other reasons
                     continue
 
                 actual_conn_type = _determine_connection_type(
-                    conn.conn_type, conn.get_receiver(), self.owner, conn.is_coro_slot
+                    conn.conn_type,
+                    conn.get_receiver(),
+                    self.owner,
+                    conn.is_coro_listener,
                 )
 
-                self._invoke_slot(conn, slot_to_call, actual_conn_type, *args, **kwargs)
+                self._invoke_listener(
+                    conn, listener_to_call, actual_conn_type, *args, **kwargs
+                )
 
                 if conn.is_one_shot:
                     with self.connections_lock:
@@ -555,73 +568,77 @@ class NxSignal:
         finally:
             _nx_from_emit.reset(token)
 
-            if logger_signal.isEnabledFor(logging.DEBUG):
-                signal_name = getattr(self, "signal_name", "<anonymous>")
+            if logger_emitter.isEnabledFor(logging.DEBUG):
+                emitter_name = getattr(self, "emitter_name", "<anonymous>")
                 # pylint: disable=possibly-used-before-assignment
                 elapsed_ms = (time.monotonic() - start_ts) * 1000
                 # pylint: enable=possibly-used-before-assignment
 
                 if elapsed_ms > 0:
                     logger.debug(
-                        'Signal emit completed: name="%s", elapsed=%.2fms',
-                        signal_name,
+                        'Emitter emit completed: name="%s", elapsed=%.2fms',
+                        emitter_name,
                         elapsed_ms,
                     )
                 else:
-                    logger.debug('Signal emit completed: name="%s"', signal_name)
+                    logger.debug('Emitter emit completed: name="%s"', emitter_name)
 
-    def _invoke_slot(self, conn, slot_to_call, actual_conn_type, *args, **kwargs):
-        """Invoke the slot once."""
+    def _invoke_listener(
+        self, conn, listener_to_call, actual_conn_type, *args, **kwargs
+    ):
+        """Invoke the listener once."""
 
-        if logger_slot.isEnabledFor(logging.DEBUG):
-            signal_name = getattr(self, "signal_name", "<anonymous>")
-            slot_name = getattr(slot_to_call, "__name__", "<anonymous_slot>")
+        if logger_listener.isEnabledFor(logging.DEBUG):
+            emitter_name = getattr(self, "emitter_name", "<anonymous>")
+            listener_name = getattr(
+                listener_to_call, "__name__", "<anonymous_listener>"
+            )
             receiver_obj = conn.get_receiver()
             receiver_class = (
                 type(receiver_obj).__name__ if receiver_obj else "<no_receiver>"
             )
 
-        if logger_slot_trace.isEnabledFor(logging.DEBUG):
+        if logger_listener_trace.isEnabledFor(logging.DEBUG):
             trace_msg = (
-                f"Slot Invoke Trace:\n"
-                f"  signal: {getattr(self, 'signal_name', '<anonymous>')}\n"
+                f"Listener Invoke Trace:\n"
+                f"  emitter: {getattr(self, 'emitter_name', '<anonymous>')}\n"
                 f"  connection details:\n"
                 f"    receiver_ref type: {type(conn.receiver_ref)}\n"
                 f"    receiver alive: {conn.get_receiver() is not None}\n"
-                f"    slot_func: {_get_func_name(conn.slot_func)}\n"
+                f"    listener_func: {_get_func_name(conn.listener_func)}\n"
                 f"    is_weak: {conn.is_weak}\n"
-                f"  slot to call:\n"
-                f"    type: {type(slot_to_call)}\n"
-                f"    name: {_get_func_name(slot_to_call)}\n"
-                f"    qualname: {getattr(slot_to_call, '__qualname__', '<unknown>')}\n"
-                f"    module: {getattr(slot_to_call, '__module__', '<unknown>')}"
+                f"  listener to call:\n"
+                f"    type: {type(listener_to_call)}\n"
+                f"    name: {_get_func_name(listener_to_call)}\n"
+                f"    qualname: {getattr(listener_to_call, '__qualname__', '<unknown>')}\n"
+                f"    module: {getattr(listener_to_call, '__module__', '<unknown>')}"
             )
 
-            logger_slot_trace.debug(trace_msg)
+            logger_listener_trace.debug(trace_msg)
 
         try:
             if actual_conn_type == NxConnectionType.DIRECT_CONNECTION:
                 if logger.isEnabledFor(logging.DEBUG):
-                    logger.debug("Calling slot directly")
+                    logger.debug("Calling listener directly")
 
-                if logger_slot.isEnabledFor(logging.DEBUG):
+                if logger_listener.isEnabledFor(logging.DEBUG):
                     start_ts = time.monotonic()
                     logger.debug(
-                        'Slot invoke started: "%s" -> %s.%s, connection=direct',
-                        signal_name,
+                        'Listener invoke started: "%s" -> %s.%s, connection=direct',
+                        emitter_name,
                         receiver_class,
-                        slot_name,
+                        listener_name,
                     )
 
-                result = slot_to_call(*args, **kwargs)
+                result = listener_to_call(*args, **kwargs)
 
-                if logger_slot.isEnabledFor(logging.DEBUG):
+                if logger_listener.isEnabledFor(logging.DEBUG):
                     exec_ms = (time.monotonic() - start_ts) * 1000
                     logger.debug(
-                        'Slot invoke completed: "%s" -> %s.%s, connection=direct, exec_time=%.2fms, result=%s',
-                        signal_name,
+                        'Listener invoke completed: "%s" -> %s.%s, connection=direct, exec_time=%.2fms, result=%s',
+                        emitter_name,
                         receiver_class,
-                        slot_name,
+                        listener_name,
                         exec_ms,
                         result,
                     )
@@ -640,16 +657,16 @@ class NxSignal:
 
                 if logger.isEnabledFor(logging.DEBUG):
                     logger.debug(
-                        "Scheduling slot: name=%s, receiver=%s, connection=%s, is_coro=%s",
-                        slot_to_call.__name__,
-                        getattr(slot_to_call, "__self__", "<no_receiver>"),
+                        "Scheduling listener: name=%s, receiver=%s, connection=%s, is_coro=%s",
+                        listener_to_call.__name__,
+                        getattr(listener_to_call, "__self__", "<no_receiver>"),
                         actual_conn_type,
-                        conn.is_coro_slot,
+                        conn.is_coro_listener,
                     )
 
                 if receiver is not None:
-                    receiver_loop = getattr(receiver, NxSignalConstants.LOOP, None)
-                    receiver_thread = getattr(receiver, NxSignalConstants.THREAD, None)
+                    receiver_loop = getattr(receiver, NxEmitterConstants.LOOP, None)
+                    receiver_thread = getattr(receiver, NxEmitterConstants.THREAD, None)
 
                     if not receiver_loop:
                         logger.error(
@@ -672,44 +689,46 @@ class NxSignal:
 
                 if not receiver_loop.is_running():
                     logger.warning(
-                        "receiver loop not running. Signals may not be delivered. receiver=%s",
+                        "receiver loop not running. Emitters may not be delivered. receiver=%s",
                         receiver.__class__.__name__,
                     )
                     return
 
                 if receiver_thread and not receiver_thread.is_alive():
                     logger.warning(
-                        "The receiver's thread is not alive. Signals may not be delivered. receiver=%s",
+                        "The receiver's thread is not alive. Emitters may not be delivered. receiver=%s",
                         receiver.__class__.__name__,
                     )
 
                 def dispatch(
-                    is_coro_slot=conn.is_coro_slot,
-                    slot_to_call=slot_to_call,
+                    is_coro_listener=conn.is_coro_listener,
+                    listener_to_call=listener_to_call,
                 ):
-                    if is_coro_slot:
-                        returned = asyncio.create_task(slot_to_call(*args, **kwargs))
+                    if is_coro_listener:
+                        returned = asyncio.create_task(
+                            listener_to_call(*args, **kwargs)
+                        )
                     else:
-                        returned = slot_to_call(*args, **kwargs)
+                        returned = listener_to_call(*args, **kwargs)
 
-                    if logger_slot.isEnabledFor(logging.DEBUG):
+                    if logger_listener.isEnabledFor(logging.DEBUG):
                         wait_ms = (time.monotonic() - queued_at) * 1000
                         logger.debug(
-                            'Slot invoke started: "%s" -> %s.%s, connection=queued, queue_wait=%.2fms',
-                            signal_name,
+                            'Listener invoke started: "%s" -> %s.%s, connection=queued, queue_wait=%.2fms',
+                            emitter_name,
                             receiver_class,
-                            slot_name,
+                            listener_name,
                             wait_ms,
                         )
 
                     if logger.isEnabledFor(logging.DEBUG):
                         task_id = getattr(returned, "get_name", lambda: "<no_task>")()
                         logger.debug(
-                            'Task created: id=%s, slot="%s" -> %s.%s',
+                            'Task created: id=%s, listener="%s" -> %s.%s',
                             task_id,
-                            signal_name,
+                            emitter_name,
                             receiver_class,
-                            slot_name,
+                            listener_name,
                         )
 
                     return returned
@@ -720,75 +739,75 @@ class NxSignal:
             logger.error("error in emission: %s", e, exc_info=True)
 
 
-# property is used for lazy initialization of the signal.
-# The signal object is created only when first accessed, and a cached object is returned thereafter.
-class NxSignalProperty(property):
-    """Signal property class for pynnex."""
+# property is used for lazy initialization of the emitter.
+# The emitter object is created only when first accessed, and a cached object is returned thereafter.
+class NxEmitterProperty(property):
+    """Emitter property class for pynnex."""
 
-    def __init__(self, fget, signal_name):
+    def __init__(self, fget, emitter_name):
         super().__init__(fget)
-        self.signal_name = signal_name
+        self.emitter_name = emitter_name
 
     def __get__(self, obj, objtype=None):
-        signal = super().__get__(obj, objtype)
+        emitter = super().__get__(obj, objtype)
 
         if obj is not None:
-            signal.owner = obj
+            emitter.owner = obj
 
-        return signal
+        return emitter
 
 
-def nx_signal(func):
+def nx_emitter(func):
     """
-    Decorator that defines a signal attribute within a class.
+    Decorator that defines an emitter attribute within a class.
 
     Parameters
     ----------
     func : function
-        Placeholder function defining signal name and docstring.
+        Placeholder function defining emitter name and docstring.
 
     Returns
     -------
-    NxSignalProperty
-        Property-like descriptor returning NxSignal object.
+    NxEmitterProperty
+        Property-like descriptor returning NxEmitter object.
 
     Notes
     -----
-    Must be used within a class decorated with @nx_with_signals.
-    Signal object is created lazily on first access.
+    Must be used within a class decorated with @nx_with_emitters.
+    Emitter object is created lazily on first access.
 
     See Also
     --------
-    nx_with_signals : Class decorator for signal/slot features
-    NxSignal : Signal class implementation
+    nx_with_emitters : Class decorator for emitter/listener features
+    NxEmitter : Emitter class implementation
     """
 
     sig_name = func.__name__
 
     def wrap(self):
-        """Wrap signal"""
+        """Wrap emitter"""
 
         if not hasattr(self, f"_{sig_name}"):
-            setattr(self, f"_{sig_name}", NxSignal())
+            setattr(self, f"_{sig_name}", NxEmitter())
 
         return getattr(self, f"_{sig_name}")
 
-    return NxSignalProperty(wrap, sig_name)
+    return NxEmitterProperty(wrap, sig_name)
 
 
-def nx_slot(func):
+def nx_listener(func):
     """
-    Decorator that marks a method as a slot.
+    Decorator that marks a method as a listener.
 
     Parameters
     ----------
     func : function or coroutine
-        Method to be decorated as a slot.
+        Method to be decorated as a listener.
 
     Returns
     -------
     function or coroutine
-        Wrapped version of the slot with thread-safe handling.
+        Wrapped version of the listener with thread-safe handling.
 
     Notes
     -----
@@ -798,7 +817,7 @@ def nx_slot(func):
 
     See Also
     --------
-    nx_with_signals : Class decorator for signal/slot features
+    nx_with_emitters : Class decorator for emitter/listener features
     """
 
     is_coroutine = asyncio.iscoroutinefunction(func)
@@ -807,7 +826,7 @@ def nx_slot(func):
 
         @functools.wraps(func)
         async def wrap(self, *args, **kwargs):
-            """Wrap coroutine slots"""
+            """Wrap coroutine listeners"""
 
             try:
                 asyncio.get_running_loop()
@@ -818,10 +837,10 @@ def nx_slot(func):
                     "No running loop in coroutine.",
                 )
 
-            if not hasattr(self, NxSignalConstants.THREAD):
+            if not hasattr(self, NxEmitterConstants.THREAD):
                 self._nx_thread = threading.current_thread()
 
-            if not hasattr(self, NxSignalConstants.LOOP):
+            if not hasattr(self, NxEmitterConstants.LOOP):
                 try:
                     self._nx_loop = asyncio.get_running_loop()
                 except RuntimeError:
@@ -847,12 +866,12 @@ def nx_slot(func):
 
         @functools.wraps(func)
         def wrap(self, *args, **kwargs):
-            """Wrap regular slots"""
+            """Wrap regular listeners"""
 
-            if not hasattr(self, NxSignalConstants.THREAD):
+            if not hasattr(self, NxEmitterConstants.THREAD):
                 self._nx_thread = threading.current_thread()
 
-            if not hasattr(self, NxSignalConstants.LOOP):
+            if not hasattr(self, NxEmitterConstants.LOOP):
                 try:
                     self._nx_loop = asyncio.get_running_loop()
                 except RuntimeError:
@@ -886,9 +905,9 @@ def nx_slot(func):
     return wrap
 
 
-def nx_with_signals(cls=None, *, loop=None, weak_default=True):
+def nx_with_emitters(cls=None, *, loop=None, weak_default=True):
     """
-    Class decorator that enables signal/slot features.
+    Class decorator that enables emitter/listener features.
 
     Parameters
     ----------
@@ -902,22 +921,22 @@ def nx_with_signals(cls=None, *, loop=None, weak_default=True):
     Returns
     -------
     class
-        Decorated class with signal/slot support.
+        Decorated class with emitter/listener support.
 
     Notes
     -----
     - Assigns event loop and thread affinity to instances
-    - Enables automatic threading support for signals/slots
+    - Enables automatic threading support for emitters/listeners
     - weak_default can be overridden per connection
 
     See Also
     --------
-    nx_signal : Signal decorator
-    nx_slot : Slot decorator
+    nx_emitter : Emitter decorator
+    nx_listener : Listener decorator
     """
 
     def wrap(cls):
-        """Wrap class with signals"""
+        """Wrap class with emitters"""
 
         original_init = cls.__init__
 

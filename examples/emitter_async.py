@@ -1,49 +1,50 @@
-# examples/signal_async.py
+# examples/emitter_async.py
 
 """
-Async Signal Example
+Async Emitter Example
 
-This example demonstrates the basic usage of PynneX with async slots:
-1. Creating a signal
-2. Connecting an async slot
-3. Emitting a signal to async handler
+This example demonstrates the basic usage of PynneX with async listeners:
+1. Creating an emitter
+2. Connecting an async listener
+3. Emitting an emitter to async handler
 
 Key Points:
-- Demonstrates asynchronous signal-slot communication
-- Shows how to use @nx_slot decorator with async functions
-- Illustrates handling of async slot execution in event loop
-- Explains integration of signals with asyncio for non-blocking operations
+- Demonstrates asynchronous emitter-listener communication
+- Shows how to use @nx_listener decorator with async functions
+- Illustrates handling of async listener execution in event loop
+- Explains integration of emitters with asyncio for non-blocking operations
 """
 
 import asyncio
-from pynnex import with_signals, signal, slot
+from pynnex import with_emitters, emitter, listener
 from utils import logger_setup
 
 logger_setup("pynnex")
 logger = logger_setup(__name__)
 
-@with_signals
+
+@with_emitters
 class Counter:
     """
-    A simple counter class that emits a signal when its count changes.
+    A simple counter class that emits an emitter when its count changes.
     """
 
     def __init__(self):
         self.count = 0
 
-    @signal
+    @emitter
     def count_changed(self):
-        """Signal emitted when count changes"""
+        """Emitter emitted when count changes"""
 
     def increment(self):
-        """Increment counter and emit signal"""
+        """Increment counter and emit emitter"""
 
         self.count += 1
         print(f"Counter incremented to: {self.count}")
         self.count_changed.emit(self.count)
 
 
-@with_signals
+@with_emitters
 class AsyncDisplay:
     """
     A simple display class that receives count updates and processes them asynchronously.
@@ -52,9 +53,9 @@ class AsyncDisplay:
     def __init__(self):
         self.last_value = None
 
-    @slot
+    @listener
     async def on_count_changed(self, value):
-        """Async slot that receives count updates"""
+        """Async listener that receives count updates"""
         logger.debug("[DataDisplay] Processing count: %d", value)
         # Simulate some async processing
         await asyncio.sleep(1)
@@ -71,7 +72,7 @@ async def main():
     counter = Counter()
     display = AsyncDisplay()
 
-    # Connect signal to async slot
+    # Connect emitter to async listener
     counter.count_changed.connect(display, display.on_count_changed)
 
     print("Starting async counter example...")
@@ -85,7 +86,7 @@ async def main():
         if line.lower() == "q":
             break
 
-        # Increment counter which will emit signal
+        # Increment counter which will emit emitter
         counter.increment()
 
         # Give some time for async processing to complete

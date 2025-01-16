@@ -3,16 +3,29 @@ requires = ["setuptools>=42", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "pynnex"
-version = "1.0.4"
-description = "A Python Signal-Slot library"
+name = "PynneX"
+version = "1.1.0"
+description = "A Python Emitter-Listener library"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
     {name = "San Kim", email = "nexconnect.io@gmail.com"}
 ]
-keywords = ["signal-slot", "decorator", "multithreading", "asyncio"]
+keywords = [
+  "emitter",
+  "listener",
+  "signals",
+  "slots",
+  "signal-slot",
+  "decorator",
+  "asyncio",
+  "thread-safe",
+  "multithreading",
+  "pubsub",
+  "publisher",
+  "subscriber"
+]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",

@@ -9,7 +9,7 @@ This example demonstrates the worker thread pattern using PynneX's nx_with_worke
    - ImageProcessor: A worker class that processes images in background
    - Supports async initialization and cleanup
    - Uses task queue for processing requests
-   - Communicates results via signals
+   - Communicates results via emitters
 
 2. Main Thread:
    - Controls worker lifecycle
@@ -19,18 +19,19 @@ This example demonstrates the worker thread pattern using PynneX's nx_with_worke
 Architecture:
 - Worker runs in separate thread with its own event loop
 - Task queue ensures sequential processing
-- Signal/Slot connections handle thread-safe communication
+- Emitter/Listener connections handle thread-safe communication
 """
 
 # pylint: disable=no-member
 # pylint: disable=unused-argument
 
 import asyncio
-from pynnex import with_signals, signal, slot, with_worker
+from pynnex import with_emitters, emitter, listener, with_worker
 from utils import logger_setup
 
 logger_setup("pynnex")
 logger = logger_setup(__name__)
+
 
 @with_worker
 class ImageProcessor:
@@ -48,13 +49,13 @@ class ImageProcessor:
         print("[Worker Thread] Cleaning up image processor")
         self.cache.clear()
 
-    @signal
+    @emitter
     def processing_complete(self):
-        """Signal emitted when image processing completes"""
+        """Emitter emitted when image processing completes"""
 
-    @signal
+    @emitter
     def batch_complete(self):
-        """Signal emitted when batch processing completes"""
+        """Emitter emitted when batch processing completes"""
 
     async def process_image(self, image_id: str, image_data: bytes):
         """Process single image (runs in worker thread)"""
@@ -88,7 +89,7 @@ class ImageProcessor:
         return results
 
 
-@with_signals
+@with_emitters
 class ImageViewer:
     """UI component that displays processed images"""
 
@@ -96,13 +97,13 @@ class ImageViewer:
         print("[Main Thread] Creating image viewer")
         self.processed_images = {}
 
-    @slot
+    @listener
     def on_image_processed(self, image_id: str, result: str):
         """Handle processed image (runs in main thread)"""
         print(f"[Main Thread] Received processed image {image_id}")
         self.processed_images[image_id] = result
 
-    @slot
+    @listener
     def on_batch_complete(self, results: list):
         """Handle completed batch (runs in main thread)"""
         print(f"[Main Thread] Batch processing complete: {len(results)} images")
@@ -115,7 +116,7 @@ async def main():
     processor = ImageProcessor()
     viewer = ImageViewer()
 
-    # Connect signals
+    # Connect emitters
     processor.processing_complete.connect(viewer, viewer.on_image_processed)
     processor.batch_complete.connect(viewer, viewer.on_batch_complete)
 

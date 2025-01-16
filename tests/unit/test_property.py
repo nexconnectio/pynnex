@@ -12,13 +12,13 @@ import asyncio
 import threading
 import logging
 import pytest
-from pynnex import signal, with_signals, nx_property
+from pynnex import emitter, with_emitters, nx_property
 
 
 logger = logging.getLogger(__name__)
 
 
-@with_signals
+@with_emitters
 class Temperature:
     """Temperature class for testing"""
 
@@ -26,9 +26,9 @@ class Temperature:
         super().__init__()
         self._celsius = -273
 
-    @signal
+    @emitter
     def celsius_changed(self):
-        """Signal for celsius change"""
+        """Emitter for celsius change"""
 
     @nx_property(notify=celsius_changed)
     def celsius(self) -> float:
@@ -41,7 +41,7 @@ class Temperature:
         self._celsius = value
 
 
-@with_signals
+@with_emitters
 class ReadOnlyTemperature:
     """ReadOnlyTemperature class for testing"""
 
@@ -49,9 +49,9 @@ class ReadOnlyTemperature:
         super().__init__()
         self._celsius = 0
 
-    @signal
+    @emitter
     def celsius_changed(self):
-        """Signal for celsius change"""
+        """Emitter for celsius change"""
 
     @nx_property(notify=celsius_changed)
     def celsius(self) -> float:
@@ -78,7 +78,7 @@ async def test_property_notification():
     temp = Temperature()
     received_values = []
 
-    # Connect signal
+    # Connect emitter
     temp.celsius_changed.connect(lambda x: received_values.append(x))
 
     # Test initial value
@@ -136,7 +136,7 @@ async def test_property_thread_safety():
             loop.close()
             main_loop.call_soon_threadsafe(task_completed.set)
 
-    # Connect signal
+    # Connect emitter
     temp.celsius_changed.connect(lambda x: received_values.append(x))
 
     # Start background thread
@@ -228,7 +228,7 @@ async def test_property_multiple_threads():
 
 @pytest.mark.asyncio
 async def test_property_exception_handling():
-    """Test property behavior with exceptions in signal handlers"""
+    """Test property behavior with exceptions in emitter handlers"""
 
     temp = Temperature()
     received_values = []

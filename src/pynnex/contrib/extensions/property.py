@@ -12,7 +12,7 @@ This module provides a property decorator that allows for thread-safe access to 
 import asyncio
 import threading
 import logging
-from pynnex.core import NxSignalConstants
+from pynnex.core import NxEmitterConstants
 from pynnex.utils import nx_log_and_raise_error
 
 logger = logging.getLogger(__name__)
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 class NxProperty(property):
     """
-    Thread-safe property decorator for signal-enabled classes.
+    Thread-safe property decorator for emitter-enabled classes.
 
     Parameters
     ----------
@@ -32,19 +32,19 @@ class NxProperty(property):
         Deleter function.
     doc : str, optional
         Property docstring.
-    notify : NxSignal, optional
-        Signal to emit on value change.
+    notify : NxEmitter, optional
+        Emitter to emit on value change.
 
     Notes
     -----
     - Ensures thread-safe access via event loop
     - Automatically queues operations across threads
-    - Emits notify signal on value changes
+    - Emits notify emitter on value changes
     - Uses '_private_name' for storage
 
     See Also
     --------
-    nx_with_signals : Class decorator for signal/slot features
+    nx_with_emitters : Class decorator for emitter/listener features
     nx_property : Property decorator factory
     """
 
@@ -64,7 +64,7 @@ class NxProperty(property):
             raise AttributeError("unreadable attribute")
 
         if (
-            hasattr(obj, NxSignalConstants.THREAD)
+            hasattr(obj, NxEmitterConstants.THREAD)
             and threading.current_thread() != obj._nx_thread
         ):
             # Dispatch to event loop when accessed from a different thread
@@ -84,7 +84,7 @@ class NxProperty(property):
         # logger.debug(f"thread: {obj._nx_thread} current thread: {threading.current_thread()} loop: {obj._nx_loop}")
 
         if (
-            hasattr(obj, NxSignalConstants.THREAD)
+            hasattr(obj, NxEmitterConstants.THREAD)
             and threading.current_thread() != obj._nx_thread
         ):
             # Queue the setter call in the object's event loop
@@ -92,7 +92,7 @@ class NxProperty(property):
                 self._set_value(obj, value), obj._nx_loop
             )
 
-            # Wait for completion like slot direct calls
+            # Wait for completion like listener direct calls
             return future.result()
         else:
             return self._set_value_sync(obj, value)
@@ -103,14 +103,16 @@ class NxProperty(property):
 
         if self.notify is not None and old_value != value:
             try:
-                signal_name = getattr(self.notify, "signal_name", None)
+                emitter_name = getattr(self.notify, "emitter_name", None)
 
-                if signal_name:
-                    signal = getattr(obj, signal_name)
-                    signal.emit(value)
+                if emitter_name:
+                    emitter = getattr(obj, emitter_name)
+                    emitter.emit(value)
                 else:
                     nx_log_and_raise_error(
-                        logger, AttributeError, f"No signal_name found in {self.notify}"
+                        logger,
+                        AttributeError,
+                        f"No emitter_name found in {self.notify}",
                     )
 
             except AttributeError as e:
@@ -138,14 +140,14 @@ class NxProperty(property):
         return type(self)(self.fget, fset, self.fdel, self.__doc__, self.notify)
 
 
-def nx_property(notify=None):
+def nx_property(func=None, *, notify=None):
     """
     Decorator to create a thread-safe property.
 
     Parameters
     ----------
-    notify : NxSignal, optional
-        Signal to emit on value change.
+    notify : NxEmitter, optional
+        Emitter to emit on value change.
 
     Returns
     -------
@@ -155,14 +157,17 @@ def nx_property(notify=None):
     Notes
     -----
     - Ensures thread-safe access via event loop
-    - Emits notify signal when value changes
-    - Must be used within @nx_with_signals class
+    - Emits notify emitter when value changes
+    - Must be used within @nx_with_emitters class
 
     See Also
     --------
     NxProperty : Base property implementation
-    nx_with_signals : Required class decorator
+    nx_with_emitters : Required class decorator
     """
+
+    if func is not None:
+        return NxProperty(fget=func, notify=notify)
 
     def decorator(func):
         return NxProperty(fget=func, notify=notify)

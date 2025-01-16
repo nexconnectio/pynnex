@@ -15,18 +15,20 @@ backend (worker thread) components using PynneX:
 Architecture:
 - View runs in main thread for UI operations
 - Model and Mediator run in worker thread for data processing
-- Signal/Slot connections automatically handle thread-safe communication
+- Emitter/Listener connections automatically handle thread-safe communication
 """
 
 import asyncio
 import threading
 import time
-from pynnex import with_signals, signal, slot
+from pynnex import with_emitters, emitter, listener
 from utils import logger_setup
+
 logger_setup("pynnex")
 logger = logger_setup(__name__)
 
-@with_signals
+
+@with_emitters
 class UserView:
     """UI component in main thread"""
 
@@ -34,24 +36,24 @@ class UserView:
         self.current_user = None
         print("UserView created in main thread")
 
-    @signal
+    @emitter
     def login_requested(self):
-        """Signal emitted when user requests login"""
+        """Emitter emitted when user requests login"""
 
-    @signal
+    @emitter
     def logout_requested(self):
-        """Signal emitted when user requests logout"""
+        """Emitter emitted when user requests logout"""
 
-    @slot
+    @listener
     def on_user_logged_in(self, user_data):
-        """Slot called when login succeeds (automatically runs in main thread)"""
+        """Listener called when login succeeds (automatically runs in main thread)"""
 
         self.current_user = user_data
         print(f"[Main Thread] UI Updated: Logged in as {user_data['name']}")
 
-    @slot
+    @listener
     def on_user_logged_out(self):
-        """Slot called when logout completes"""
+        """Listener called when logout completes"""
         self.current_user = None
         print("[Main Thread] UI Updated: Logged out")
 
@@ -69,7 +71,7 @@ class UserView:
             self.logout_requested.emit()
 
 
-@with_signals
+@with_emitters
 class UserModel:
     """Data model in worker thread"""
 
@@ -79,13 +81,13 @@ class UserModel:
         }
         print("[Worker Thread] UserModel created")
 
-    @signal
+    @emitter
     def user_authenticated(self):
-        """Signal emitted when user authentication succeeds"""
+        """Emitter emitted when user authentication succeeds"""
 
-    @signal
+    @emitter
     def user_logged_out(self):
-        """Signal emitted when user logout completes"""
+        """Emitter emitted when user logout completes"""
 
     def authenticate_user(self, username, password):
         """Authenticate user credentials (runs in worker thread)"""
@@ -109,7 +111,7 @@ class UserModel:
         self.user_logged_out.emit()
 
 
-@with_signals
+@with_emitters
 class UserMediator:
     """Mediator between View and Model in worker thread"""
 
@@ -117,24 +119,24 @@ class UserMediator:
         self.view = view
         self.model = model
 
-        # Connect View signals to Mediator slots
+        # Connect View emitters to Mediator listeners
         view.login_requested.connect(self, self.on_login_requested)
         view.logout_requested.connect(self, self.on_logout_requested)
 
-        # Connect Model signals to View slots
+        # Connect Model emitters to View listeners
         model.user_authenticated.connect(view, view.on_user_logged_in)
         model.user_logged_out.connect(view, view.on_user_logged_out)
 
         print("UserMediator created in worker thread")
 
-    @slot
+    @listener
     def on_login_requested(self, username, password):
         """Handle login request from View (automatically runs in worker thread)"""
 
         print(f"[Worker Thread] Mediator handling login request for {username}")
         self.model.authenticate_user(username, password)
 
-    @slot
+    @listener
     def on_logout_requested(self):
         """Handle logout request from View"""
 

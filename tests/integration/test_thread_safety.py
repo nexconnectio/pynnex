@@ -9,19 +9,19 @@ Test cases for thread safety of PynneX.
 import unittest
 import threading
 import gc
-from pynnex import with_signals, signal
+from pynnex import with_emitters, emitter
 
 
-@with_signals
+@with_emitters
 class SafeSender:
     """
     A class that sends events.
     """
 
-    @signal
+    @emitter
     def event(self, value):
         """
-        Event signal.
+        Event emitter.
         """
 
 

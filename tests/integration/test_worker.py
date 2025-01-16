@@ -11,7 +11,7 @@ Test cases for the worker pattern.
 import asyncio
 import logging
 import pytest
-from pynnex import NxSignalConstants, with_worker
+from pynnex import NxEmitterConstants, with_worker
 
 logger = logging.getLogger(__name__)
 
@@ -23,8 +23,9 @@ async def worker():
     w = TestWorker()
     yield w
 
-    if getattr(w, NxSignalConstants.THREAD, None) and w._nx_thread.is_alive():
+    if getattr(w, NxEmitterConstants.THREAD, None) and w._nx_thread.is_alive():
         w.stop()
+
 
 @with_worker
 class TestWorker:
@@ -80,6 +81,7 @@ async def test_worker_lifecycle(worker):
     logger.info("Stopping worker")
     worker.stop()
 
+
 @with_worker
 class AliasTestWorker:
     """Test worker class using alias decorator"""
@@ -97,6 +99,7 @@ class AliasTestWorker:
         if initial_value:
             self.data.append(initial_value)
         await self.start_queue()
+
 
 @pytest.mark.asyncio
 async def test_worker_alias_lifecycle():
