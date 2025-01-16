@@ -205,12 +205,15 @@ For detailed explanations, code walkthroughs, and architecture diagrams of these
   - A minimal stock monitor that periodically updates a display. Perfect for learning how PynneX can orchestrate real-time updates without blocking.
 - [stock_monitor_console.py](https://github.com/nexconnectio/pynnex/blob/main/examples/stock_monitor_console.py)
   - A CLI-based interface that lets you type commands to set alerts, list them, and watch stock data update in real time.  
+
 <div align="center">
   <img src="https://raw.githubusercontent.com/nexconnectio/pynnex/refs/heads/main/docs/images/stock_monitor_console.png" alt="Stock Monitor Console" width="800"/>
   <p><em>Stock Monitor Console: Real-time price updates, alert configuration, and notification history in action</em></p>
 </div>
+
 - [stock_monitor_ui.py](https://github.com/nexconnectio/pynnex/blob/main/examples/stock_monitor_ui.py)
   - A more elaborate Kivy-based UI example showcasing real-time stock monitoring. You'll see how PynneX updates the interface instantly without freezing the GUI. This example underscores how PynneX’s thread and event-loop management keeps your UI responsive and your background tasks humming.
+
 <div align="center">
   <img src="https://raw.githubusercontent.com/nexconnectio/pynnex/refs/heads/main/docs/images/stock_monitor_ui.png" alt="Stock Monitor UI" width="800"/>
   <p><em>Stock Monitor UI: Real-time price updates, alert configuration, and notification history in action</em></p>
