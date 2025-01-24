@@ -1,3 +1,5 @@
+# src/pynnex/__init__.py
+
 """
 PynneX - a Python library that offers a modern emitter-listener mechanism with seamless thread safety.
 """
@@ -11,10 +13,11 @@ from .core import (
     NxConnection,
     NxEmitterConstants,
     NxEmitter,
+    NxEmitterObserver,
     _determine_connection_type,
 )
 from .utils import nx_log_and_raise_error
-from .contrib.patterns.worker.decorators import nx_with_worker
+from .contrib.patterns.worker.decorators import nx_with_worker, NxWorkerConstants
 from .contrib.extensions.property import nx_property
 
 # Convenience aliases (without nx_ prefix)
@@ -45,6 +48,7 @@ __all__ = [
     "publisher",
     "subscriber",
     "nx_with_worker",
+    "NxWorkerConstants",
     "with_worker",
     "nx_property",
     "nx_log_and_raise_error",
@@ -53,5 +57,6 @@ __all__ = [
     "NxConnection",
     "NxEmitterConstants",
     "NxEmitter",
+    "NxEmitterObserver",
     "_determine_connection_type",
 ]

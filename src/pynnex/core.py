@@ -5,6 +5,8 @@
 # pylint: disable=too-many-locals
 # pylint: disable=too-many-branches
 # pylint: disable=too-many-positional-arguments
+# pylint: disable=unused-argument
+# pylint: disable=import-outside-toplevel
 
 """
 Implementation of the Emitter class for pynnex.
@@ -24,8 +26,9 @@ import weakref
 from weakref import WeakMethod
 import threading
 import time
-from typing import Callable, Optional
+from typing import Callable, Optional, NamedTuple
 from pynnex.utils import nx_log_and_raise_error
+
 
 logger = logging.getLogger("pynnex")
 logger_emitter = logging.getLogger("pynnex.emitter")
@@ -206,6 +209,60 @@ def _extract_unbound_function(callable_obj):
     return getattr(callable_obj, "__func__", callable_obj)
 
 
+class NxEmitterObserver:
+    """
+    An interface for receiving events from NxEmitter, such as slot call attempts,
+    and collecting debugging/logging/statistics.
+    """
+
+    def __init__(self):
+        self.call_attempts = 0
+
+    def on_slot_call_attempt(self, listener, *args, **kwargs):
+        """
+        Called when a slot call is attempted.
+        """
+
+        self.call_attempts += 1
+
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(
+                "Call attempt on: %s, total attempts=%d",
+                listener,
+                self.call_attempts,
+            )
+
+    def on_slot_call_direct_done(self, listener, result=None, error=None):
+        """
+        Called when a synchronous slot is called immediately.
+        """
+
+        if logger.isEnabledFor(logging.DEBUG):
+            if error:
+                logger.debug(
+                    "Direct call error in %s: %s",
+                    listener,
+                    error,
+                )
+            else:
+                logger.debug(
+                    "Direct call done: %s, result=%s",
+                    listener,
+                    result,
+                )
+
+    def on_emit_finished(self, total_attempts):
+        """
+        Called when NxEmitter.emit(...) has finished calling all listeners (or scheduling them).
+        """
+
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(
+                "Emitter emit finished: attempts=%d",
+                total_attempts,
+            )
+
+
 class NxEmitter:
     """Emitter class for pynnex."""
 
@@ -364,8 +421,6 @@ class NxEmitter:
     def _cleanup_on_ref_dead(self, ref):
         """Cleanup connections on weak reference death."""
 
-        logger.info("Cleaning up dead reference: %s", ref)
-
         # ref is a weak reference to the receiver
         # Remove connections associated with the dead receiver
         with self.connections_lock:
@@ -377,12 +432,13 @@ class NxEmitter:
 
             after_count = len(self.connections)
 
-            logger.info(
-                "Removed %d connections (before: %d, after: %d)",
-                before_count - after_count,
-                before_count,
-                after_count,
-            )
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(
+                    "Removed %d connections (before: %d, after: %d)",
+                    before_count - after_count,
+                    before_count,
+                    after_count,
+                )
 
     def disconnect(self, receiver: object = None, listener: Callable = None) -> int:
         """
@@ -463,7 +519,7 @@ class NxEmitter:
             disconnected = original_count - len(self.connections)
             return disconnected
 
-    def emit(self, *args, **kwargs):
+    def emit(self, *args, observer=None, **kwargs):
         """
         Emit the emitter with the specified arguments.
 
@@ -481,6 +537,193 @@ class NxEmitter:
         - Async listeners use queued connections in AUTO mode
         - Exceptions in listeners are logged but don't stop emission
         """
+
+        call_count = 0
+
+        def _invoke_listener(conn, listener_to_call, actual_conn_type, *args, **kwargs):
+            """Invoke the listener once."""
+
+            nonlocal call_count
+
+            call_count += 1
+
+            class ListenerInfo(NamedTuple):
+                """Information about a listener for logging purposes"""
+
+                emitter_name: str
+                listener_name: str
+                receiver_class: str
+
+            def _get_listener_info(self, conn, listener_to_call) -> ListenerInfo:
+                """Get formatted listener information for logging"""
+                emitter_name = getattr(self, "emitter_name", "<anonymous>")
+                listener_name = getattr(
+                    listener_to_call, "__name__", "<anonymous_listener>"
+                )
+                receiver_obj = conn.get_receiver()
+                receiver_class = (
+                    type(receiver_obj).__name__ if receiver_obj else "<no_receiver>"
+                )
+                return ListenerInfo(emitter_name, listener_name, receiver_class)
+
+            listener_info = None
+
+            if logger_listener.isEnabledFor(logging.DEBUG):
+                listener_info = _get_listener_info(self, conn, listener_to_call)
+
+            if logger_listener_trace.isEnabledFor(logging.DEBUG):
+                trace_msg = (
+                    f"Listener Invoke Trace:\n"
+                    f"  emitter: {getattr(self, 'emitter_name', '<anonymous>')}\n"
+                    f"  connection details:\n"
+                    f"    receiver_ref type: {type(conn.receiver_ref)}\n"
+                    f"    receiver alive: {conn.get_receiver() is not None}\n"
+                    f"    listener_func: {_get_func_name(conn.listener_func)}\n"
+                    f"    is_weak: {conn.is_weak}\n"
+                    f"  listener to call:\n"
+                    f"    type: {type(listener_to_call)}\n"
+                    f"    name: {_get_func_name(listener_to_call)}\n"
+                    f"    qualname: {getattr(listener_to_call, '__qualname__', '<unknown>')}\n"
+                    f"    module: {getattr(listener_to_call, '__module__', '<unknown>')}"
+                )
+
+                logger_listener_trace.debug(trace_msg)
+
+            try:
+                if actual_conn_type == NxConnectionType.DIRECT_CONNECTION:
+                    if observer:
+                        observer.on_slot_call_attempt(listener_to_call, *args, **kwargs)
+
+                    if logger.isEnabledFor(logging.DEBUG):
+                        logger.debug("Calling listener directly")
+
+                    if logger_listener.isEnabledFor(logging.DEBUG):
+                        start_ts = time.monotonic()
+                        logger.debug(
+                            'Listener invoke started: "%s" -> %s.%s, connection=direct',
+                            listener_info.emitter_name,
+                            listener_info.receiver_class,
+                            listener_info.listener_name,
+                        )
+
+                    result = listener_to_call(*args, **kwargs)
+
+                    if logger_listener.isEnabledFor(logging.DEBUG):
+                        exec_ms = (time.monotonic() - start_ts) * 1000
+                        logger.debug(
+                            'Listener invoke completed: "%s" -> %s.%s, connection=direct, exec_time=%.2fms, result=%s',
+                            listener_info.emitter_name,
+                            listener_info.receiver_class,
+                            listener_info.listener_name,
+                            exec_ms,
+                            result,
+                        )
+
+                    if logger.isEnabledFor(logging.DEBUG):
+                        logger.debug(
+                            "result=%s result_type=%s",
+                            result,
+                            type(result),
+                        )
+                else:
+                    # Handle QUEUED CONNECTION
+                    if observer:
+                        observer.on_slot_call_attempt(listener_to_call, *args, **kwargs)
+
+                    queued_at = time.monotonic()
+
+                    receiver = conn.get_receiver()
+
+                    if logger_listener.isEnabledFor(logging.DEBUG):
+                        logger.debug(
+                            "Scheduling listener: name=%s, receiver=%s.%s, connection=%s, is_coro=%s",
+                            listener_info.emitter_name,
+                            listener_info.receiver_class,
+                            listener_info.listener_name,
+                            actual_conn_type,
+                            conn.is_coro_listener,
+                        )
+
+                    if receiver is not None:
+                        receiver_loop = getattr(receiver, NxEmitterConstants.LOOP, None)
+                        receiver_thread = getattr(
+                            receiver, NxEmitterConstants.THREAD, None
+                        )
+
+                        if not receiver_loop:
+                            logger.error(
+                                "No event loop found for receiver. receiver=%s",
+                                receiver,
+                                stack_info=True,
+                            )
+                            return
+                    else:
+                        try:
+                            receiver_loop = asyncio.get_running_loop()
+                        except RuntimeError:
+                            nx_log_and_raise_error(
+                                logger,
+                                RuntimeError,
+                                "No running event loop found for queued connection.",
+                            )
+
+                        receiver_thread = None
+
+                    if not receiver_loop.is_running():
+                        logger.warning(
+                            "receiver loop not running. Emitters may not be delivered. receiver=%s",
+                            receiver.__class__.__name__,
+                        )
+                        return
+
+                    if receiver_thread and not receiver_thread.is_alive():
+                        logger.warning(
+                            "The receiver's thread is not alive. Emitters may not be delivered. receiver=%s",
+                            receiver.__class__.__name__,
+                        )
+
+                    def dispatch(
+                        is_coro_listener=conn.is_coro_listener,
+                        listener_to_call=listener_to_call,
+                    ):
+                        def _on_task_done(t: asyncio.Task):
+                            from pynnex.contrib.patterns.worker.decorators import (
+                                NxWorkerConstants,
+                            )
+
+                            # Set the Worker's Future to indicate completion
+                            if hasattr(self.owner, NxWorkerConstants.STOPPED_DONE_FUT):
+                                fut = self.owner._nx_stopped_done_fut
+                                if fut is not None and not fut.done():
+                                    fut.set_result(True)
+
+                        if is_coro_listener:
+                            returned = asyncio.create_task(
+                                listener_to_call(*args, **kwargs)
+                            )
+                            returned.add_done_callback(_on_task_done)
+                        else:
+                            returned = listener_to_call(*args, **kwargs)
+                            _on_task_done(returned)
+
+                        if logger_listener.isEnabledFor(logging.DEBUG):
+                            wait_ms = (time.monotonic() - queued_at) * 1000
+                            logger_listener.debug(
+                                "Listener invoke completed: name=%s, receiver=%s.%s, connection=%s, is_coro=%s, exec_time=%.2fms",
+                                listener_info.emitter_name,
+                                listener_info.receiver_class,
+                                listener_info.listener_name,
+                                actual_conn_type,
+                                conn.is_coro_listener,
+                                wait_ms,
+                            )
+
+                        return returned
+
+                    receiver_loop.call_soon_threadsafe(dispatch)
+
+            except Exception as e:
+                logger.error("error in emission: %s", e, exc_info=True)
 
         if logger.isEnabledFor(logging.DEBUG):
             # Emitter meta info
@@ -556,7 +799,7 @@ class NxEmitter:
                     conn.is_coro_listener,
                 )
 
-                self._invoke_listener(
+                _invoke_listener(
                     conn, listener_to_call, actual_conn_type, *args, **kwargs
                 )
 
@@ -583,160 +826,11 @@ class NxEmitter:
                 else:
                     logger.debug('Emitter emit completed: name="%s"', emitter_name)
 
-    def _invoke_listener(
-        self, conn, listener_to_call, actual_conn_type, *args, **kwargs
-    ):
-        """Invoke the listener once."""
+        if observer:
+            observer.on_emit_finished(call_count)
 
-        if logger_listener.isEnabledFor(logging.DEBUG):
-            emitter_name = getattr(self, "emitter_name", "<anonymous>")
-            listener_name = getattr(
-                listener_to_call, "__name__", "<anonymous_listener>"
-            )
-            receiver_obj = conn.get_receiver()
-            receiver_class = (
-                type(receiver_obj).__name__ if receiver_obj else "<no_receiver>"
-            )
-
-        if logger_listener_trace.isEnabledFor(logging.DEBUG):
-            trace_msg = (
-                f"Listener Invoke Trace:\n"
-                f"  emitter: {getattr(self, 'emitter_name', '<anonymous>')}\n"
-                f"  connection details:\n"
-                f"    receiver_ref type: {type(conn.receiver_ref)}\n"
-                f"    receiver alive: {conn.get_receiver() is not None}\n"
-                f"    listener_func: {_get_func_name(conn.listener_func)}\n"
-                f"    is_weak: {conn.is_weak}\n"
-                f"  listener to call:\n"
-                f"    type: {type(listener_to_call)}\n"
-                f"    name: {_get_func_name(listener_to_call)}\n"
-                f"    qualname: {getattr(listener_to_call, '__qualname__', '<unknown>')}\n"
-                f"    module: {getattr(listener_to_call, '__module__', '<unknown>')}"
-            )
-
-            logger_listener_trace.debug(trace_msg)
-
-        try:
-            if actual_conn_type == NxConnectionType.DIRECT_CONNECTION:
-                if logger.isEnabledFor(logging.DEBUG):
-                    logger.debug("Calling listener directly")
-
-                if logger_listener.isEnabledFor(logging.DEBUG):
-                    start_ts = time.monotonic()
-                    logger.debug(
-                        'Listener invoke started: "%s" -> %s.%s, connection=direct',
-                        emitter_name,
-                        receiver_class,
-                        listener_name,
-                    )
-
-                result = listener_to_call(*args, **kwargs)
-
-                if logger_listener.isEnabledFor(logging.DEBUG):
-                    exec_ms = (time.monotonic() - start_ts) * 1000
-                    logger.debug(
-                        'Listener invoke completed: "%s" -> %s.%s, connection=direct, exec_time=%.2fms, result=%s',
-                        emitter_name,
-                        receiver_class,
-                        listener_name,
-                        exec_ms,
-                        result,
-                    )
-
-                if logger.isEnabledFor(logging.DEBUG):
-                    logger.debug(
-                        "result=%s result_type=%s",
-                        result,
-                        type(result),
-                    )
-            else:
-                # Handle QUEUED CONNECTION
-                queued_at = time.monotonic()
-
-                receiver = conn.get_receiver()
-
-                if logger.isEnabledFor(logging.DEBUG):
-                    logger.debug(
-                        "Scheduling listener: name=%s, receiver=%s, connection=%s, is_coro=%s",
-                        listener_to_call.__name__,
-                        getattr(listener_to_call, "__self__", "<no_receiver>"),
-                        actual_conn_type,
-                        conn.is_coro_listener,
-                    )
-
-                if receiver is not None:
-                    receiver_loop = getattr(receiver, NxEmitterConstants.LOOP, None)
-                    receiver_thread = getattr(receiver, NxEmitterConstants.THREAD, None)
-
-                    if not receiver_loop:
-                        logger.error(
-                            "No event loop found for receiver. receiver=%s",
-                            receiver,
-                            stack_info=True,
-                        )
-                        return
-                else:
-                    try:
-                        receiver_loop = asyncio.get_running_loop()
-                    except RuntimeError:
-                        nx_log_and_raise_error(
-                            logger,
-                            RuntimeError,
-                            "No running event loop found for queued connection.",
-                        )
-
-                    receiver_thread = None
-
-                if not receiver_loop.is_running():
-                    logger.warning(
-                        "receiver loop not running. Emitters may not be delivered. receiver=%s",
-                        receiver.__class__.__name__,
-                    )
-                    return
-
-                if receiver_thread and not receiver_thread.is_alive():
-                    logger.warning(
-                        "The receiver's thread is not alive. Emitters may not be delivered. receiver=%s",
-                        receiver.__class__.__name__,
-                    )
-
-                def dispatch(
-                    is_coro_listener=conn.is_coro_listener,
-                    listener_to_call=listener_to_call,
-                ):
-                    if is_coro_listener:
-                        returned = asyncio.create_task(
-                            listener_to_call(*args, **kwargs)
-                        )
-                    else:
-                        returned = listener_to_call(*args, **kwargs)
-
-                    if logger_listener.isEnabledFor(logging.DEBUG):
-                        wait_ms = (time.monotonic() - queued_at) * 1000
-                        logger.debug(
-                            'Listener invoke started: "%s" -> %s.%s, connection=queued, queue_wait=%.2fms',
-                            emitter_name,
-                            receiver_class,
-                            listener_name,
-                            wait_ms,
-                        )
-
-                    if logger.isEnabledFor(logging.DEBUG):
-                        task_id = getattr(returned, "get_name", lambda: "<no_task>")()
-                        logger.debug(
-                            'Task created: id=%s, listener="%s" -> %s.%s',
-                            task_id,
-                            emitter_name,
-                            receiver_class,
-                            listener_name,
-                        )
-
-                    return returned
-
-                receiver_loop.call_soon_threadsafe(dispatch)
-
-        except Exception as e:
-            logger.error("error in emission: %s", e, exc_info=True)
+    # Add publish as an alias for emit
+    publish = emit
 
 
 # property is used for lazy initialization of the emitter.

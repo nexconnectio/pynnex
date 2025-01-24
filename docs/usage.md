@@ -237,14 +237,17 @@ from pynnex import nx_with_worker, nx_emitter
 
 @nx_with_worker
 class BackgroundWorker:
+    def __init__(self):
+        self.started.connect(self.on_started)
+    
     @nx_emitter
     def work_done(self):
         pass
 
-    async def run(self, *args, **kwargs):
-        # The main entry point in the worker thread.
-        # Wait until stopped
-        await self.wait_for_stop()
+    @listener
+    async def on_started(self, *args, **kwargs):
+        # Initialize resources and start processing
+        await self.heavy_task(10)
 
     async def heavy_task(self, data):
         await asyncio.sleep(2)  # Simulate heavy computation
@@ -252,27 +255,31 @@ class BackgroundWorker:
 
 worker = BackgroundWorker()
 worker.start()
-worker.queue_task(worker.heavy_task(10))
 worker.stop()
 ```
 
 ** Key Points for Workers**
-- Define `async def run(self, *args, **kwargs)` as the main loop of the worker.
-- Call `start(*args, **kwargs)` to launch the worker with optional arguments passed to `run()`.
-- Use `queue_task(coro)` to run async tasks in the worker’s event loop.
-- Use `stop()` to request a graceful shutdown, causing `run()` to return after `_nx_stopping` is set.
+- Connect to `started` signal to initialize resources and start processing
+- Use `queue_task(coro)` to run async tasks in the worker's event loop
+- Use `stop()` to request a graceful shutdown
+- Worker states: CREATED -> STARTING -> STARTED -> STOPPING -> STOPPED
 
-**Passing Arguments to run()**
-If `run()` accepts additional parameters, simply provide them to `start()`:
-
-```python
-async def run(self, config=None):
-    # Use config here
-    await self.wait_for_stop()
-```
+**Passing Arguments to Worker**
+Arguments passed to `start()` are forwarded to the `started` signal handlers:
 
 ```python
-worker.start(config={'threads':4})
+@nx_with_worker
+class ConfigurableWorker:
+    def __init__(self):
+        self.started.connect(self.on_started)
+        
+    @listener
+    async def on_started(self, config=None):
+        # Use config here
+        print(f"Worker started with config: {config}")
+
+worker = ConfigurableWorker()
+worker.start(config={'threads': 4})
 ```
 
 ---

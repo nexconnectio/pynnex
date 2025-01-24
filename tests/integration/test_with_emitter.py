@@ -144,7 +144,7 @@ async def test_alias_decorators():
         def emit_value(self, value):
             """Emit the value_changed emitter."""
 
-            self.value_changed.emit(value)
+            self.value_changed.publish(value)
 
     @with_publishers
     class PublisherAliasTestReceiver:
@@ -154,7 +154,7 @@ async def test_alias_decorators():
             self.received_value = None
             self.received_count = 0
 
-        @slot
+        @subscriber
         def on_value_changed(self, value):
             """Listener that handles value changes."""
 

@@ -23,7 +23,9 @@ async def queue_worker():
     w = QueueWorker()
     yield w
     logger.info("Cleaning up QueueWorker")
-    w.stop()
+
+    if w._nx_thread is not None and w._nx_thread.is_alive():
+        w.stop()
 
 
 @with_worker
@@ -57,21 +59,14 @@ class QueueWorker:
 async def test_basic_queue_operation(queue_worker):
     """Basic queue operation test"""
 
-    logger.info("Starting queue worker")
     queue_worker.start()
-    logger.info("Queue worker started")
     await asyncio.sleep(0.1)
 
-    logger.info("Queueing tasks")
     queue_worker.queue_task(queue_worker.process_item("item1"))
-    logger.info("Task queued: item1")
     queue_worker.queue_task(queue_worker.process_item("item2"))
-    logger.info("Task queued: item2")
 
-    logger.info("Waiting for tasks to complete")
     await asyncio.sleep(0.5)
 
-    logger.info("Checking processed items: %s", queue_worker.processed_items)
     assert "item1" in queue_worker.processed_items
     assert "item2" in queue_worker.processed_items
     assert len(queue_worker.processed_items) == 2
@@ -112,7 +107,6 @@ async def test_queue_error_handling(queue_worker):
     await asyncio.sleep(0.5)
 
     # The error should not prevent the next task from being processed
-    print("[test_queue_error_handling] processed_items: ", queue_worker.processed_items)
     assert "good_item" in queue_worker.processed_items
     assert "after_error" in queue_worker.processed_items
 
@@ -138,7 +132,7 @@ async def test_queue_cleanup_on_stop(queue_worker):
     queue_worker.stop()
 
     # Check if the worker exited normally
-    assert not queue_worker._nx_thread
+    assert not queue_worker._nx_thread.is_alive()
 
 
 @pytest.mark.asyncio

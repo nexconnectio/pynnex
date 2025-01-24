@@ -128,32 +128,54 @@ If the decorated listener is async, or if the listener might be called from anot
 Decorates a class to run inside a dedicated worker thread with its own event loop. Ideal for offloading tasks without blocking the main thread. When using @nx_with_worker, the worker thread automatically sets up its own event loop, so calls within that worker are safe. For the main thread, you still need an existing loop if you plan on using async listeners or cross-thread emitters. The worker provides:
 
 - A dedicated event loop in another thread.
-- The `run(*args, **kwargs)` coroutine as the main entry point.
 - A built-in async task queue via `queue_task`.
+- Thread-safe state management (CREATED, STARTING, STARTED, STOPPING, STOPPED)
+- Built-in signals (started, stopped)
 
 **Key Methods**:
 
 `start(*args, **kwargs)`
+
 Starts the worker thread and its event loop.
+
 - **Parameters:**
   - ***args:** Positional arguments passed to the worker's `run()` method.
   - ****kwargs:** Keyword arguments passed to the worker's `run()` method.
 
-`stop()`
-Stops the worker thread and its event loop gracefully.
-- Cancels any running tasks and waits for the thread to finish.
+- **Raises:**
+  - **RuntimeError:** If worker is not in CREATED state.
 
-`queue_task(coro)`
-Schedules a coroutine to run on the worker's event loop.
+`stop(wait: bool = True, timeout: float = None) -> bool`
+
+Stops the worker thread and its event loop gracefully. Cancels any running tasks and waits for the thread to finish.
+
 - **Parameters:**
-  - **coro:** A coroutine object to be executed in the worker thread.
+  - **wait:** If True, waits for the thread to finish.
+  - **timeout:** Maximum time to wait for thread completion.
+
+- **Raises:**
+  - **RuntimeError:** If worker is not in STARTING or STARTED state.
+
+**Example:**
+
+```python
+worker.start()
+worker.stop()
+```
+
+`queue_task(maybe_coro) -> asyncio.Future`
+
+Schedules a coroutine to run on the worker's event loop.
+
+- **Parameters:**
+  - **maybe_coro:** A coroutine, coroutine function, or callable.
+
+- **Returns:**
+  - **asyncio.Future:** A Future that completes when the task is done.
+
 - **Raises:**
   - **RuntimeError:** If the worker is not started.
-
-**Key Points:**
-
-`run(*args, **kwargs)` is an async method that you can define to perform long-running operations or await a stopping event.
-To pass arguments to start(), ensure run() accepts *args, **kwargs.
+  - **TypeError:** If argument is not a valid task type.
 
 **Example:**
 
