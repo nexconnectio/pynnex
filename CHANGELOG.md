@@ -6,7 +6,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.1.1] - 2025-01-24
+## [1.1.2] - 2025-01-24
+- Improved worker pattern task cancellation
+  - Simplify task result handling by moving it to try block
+  - Remove redundant cancelled flag
+
+### Changed
+
+ [1.1.1] - 2025-01-24
 
 ### Changed
 - Improved worker pattern implementation:
