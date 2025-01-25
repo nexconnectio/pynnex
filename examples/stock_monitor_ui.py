@@ -230,8 +230,19 @@ class AsyncKivyApp(App):
         lower_str = self.view.lower_input.text.strip()
         upper_str = self.view.upper_input.text.strip()
 
-        lower = float(lower_str) if lower_str else None
-        upper = float(upper_str) if upper_str else None
+        try:
+            lower = float(lower_str) if lower_str else None
+        except ValueError:
+            self.view.lower_input.text = ""
+            self.view.alert_label.text = "Invalid input"
+            return
+
+        try:
+            upper = float(upper_str) if upper_str else None
+        except ValueError:
+            self.view.upper_input.text = ""
+            self.view.alert_label.text = "Invalid input"
+            return
 
         if not code:
             self.view.alert_label.text = "No stock selected"

@@ -53,7 +53,7 @@ async def main():
     print("Press Enter to increment counter, or 'q' to quit.")
 
     while True:
-        line = input("> ")
+        line = input("> (q to quit)")
 
         if line.lower() == "q":
             break
