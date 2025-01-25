@@ -18,7 +18,7 @@ Key Points:
 """
 
 import asyncio
-from pynnex.core import with_emitters, emitter
+from pynnex import with_emitters, emitter
 from utils import logger_setup
 
 logger_setup("pynnex")
@@ -40,14 +40,14 @@ class Counter:
         """Increment the counter and emit the emitter."""
 
         self.count += 1
-        logger.debug("[Counter] Incremented to: %d", self.count)
+        print(f"[Counter] Incremented to: {self.count}")
         self.count_changed.emit(self.count)
 
 
 def print_value(value):
     """A standalone function acting as a listener."""
 
-    logger.debug("[print_value] Received value: %d", value)
+    print(f"[print_value] Received value: {value}")
 
 
 async def main():
@@ -60,7 +60,7 @@ async def main():
     print("Press Enter to increment counter, or 'q' to quit.")
 
     while True:
-        line = input("> ")
+        line = input("> (q to quit)")
 
         if line.lower() == "q":
             break

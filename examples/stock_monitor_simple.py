@@ -48,6 +48,8 @@ class DataWorker:
     def __init__(self):
         self._running = False
         self._update_task = None
+        self.started.connect(self.on_started)
+        self.stopped.connect(self.on_stopped)
 
     @emitter
     def data_processed(self):
@@ -57,45 +59,35 @@ class DataWorker:
         Receives an integer count.
         """
 
-    async def run(self, *args, **kwargs):
-        """
-        Worker initialization and main event loop.
+    @listener
+    async def on_started(self, *args, **kwargs):
+        """Called when worker starts."""
 
-        Creates the update loop task and waits until the worker is stopped.
-        """
-
-        logger.info("[DataWorker][run] Starting")
-
+        logger.info("[DataWorker][on_started] Starting")
         self._running = True
         self._update_task = asyncio.create_task(self.update_loop())
-        # Wait until run() is finished
-        await self.wait_for_stop()
-        # Clean up
-        self._running = False
 
+    @listener
+    async def on_stopped(self):
+        """Called when worker stops."""
+
+        logger.info("[DataWorker][on_stopped] Stopping")
+        self._running = False
         if self._update_task:
             self._update_task.cancel()
-
             try:
                 await self._update_task
             except asyncio.CancelledError:
                 pass
 
     async def update_loop(self):
-        """
-        Periodically emits a counter value.
-
-        Every second, the counter increments and `data_processed` is emitted.
-        """
+        """Periodically emits a counter value."""
 
         count = 0
-
         while self._running:
             logger.info("[DataWorker] Processing data %d", count)
             self.data_processed.emit(count)
-
             count += 1
-
             await asyncio.sleep(1)
 
 

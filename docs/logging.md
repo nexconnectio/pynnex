@@ -13,6 +13,7 @@ PynneX uses Python's standard logging module with the following hierarchy:
     - `pynnex.emitter.trace`: Detailed emitter debugging information
   - `pynnex.listener`: Listener-related events
     - `pynnex.listener.trace`: Detailed listener debugging information
+  - `pynnex.worker`: Worker-related events
 
 Regardless of which alias (signal-slot, publisher-subscriber, etc.) you use, all logs appear under `pynnex.emitter` or `pynnex.listener`. This is the internal naming convention for PynneX’s logging system.
 

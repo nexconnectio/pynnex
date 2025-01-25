@@ -3,6 +3,7 @@
 # pylint: disable=no-member
 # pylint: disable=redefined-outer-name
 # pylint: disable=unused-variable
+# pylint: disable=unused-argument
 
 """
 Test cases for the worker pattern.
@@ -11,7 +12,7 @@ Test cases for the worker pattern.
 import asyncio
 import logging
 import pytest
-from pynnex import NxEmitterConstants, with_worker
+from pynnex import with_worker, listener, emitter
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,7 @@ async def worker():
     w = TestWorker()
     yield w
 
-    if getattr(w, NxEmitterConstants.THREAD, None) and w._nx_thread.is_alive():
+    if w._nx_thread is not None and w._nx_thread.is_alive():
         w.stop()
 
 
@@ -34,10 +35,11 @@ class TestWorker:
     def __init__(self):
         self.run_called = False
         self.data = []
-        super().__init__()
+        self.started.connect(self.on_started)
 
-    async def run(self, *args, **kwargs):
-        """Run the worker"""
+    @listener
+    def on_started(self, *args, **kwargs):
+        """Listener for started signal"""
 
         self.run_called = True
         initial_value = args[0] if args else kwargs.get("initial_value", None)
@@ -45,40 +47,84 @@ class TestWorker:
         if initial_value:
             self.data.append(initial_value)
 
-        await self.start_queue()
+
+@pytest.mark.asyncio
+async def test_worker_basic():
+    """Test the worker basic functionality"""
+
+    result = None
+
+    @with_worker
+    class BackgroundWorker:
+        """Background worker class"""
+
+        def __init__(self):
+            self.started.connect(self.on_started)
+            self.work_done.connect(self.on_work_done)
+
+        @emitter
+        def work_done(self):
+            """Emitter for work done"""
+
+        @listener
+        async def on_started(self, *args, **kwargs):
+            """Listener for started signal"""
+
+            # Initialize resources and start processing
+            await self.heavy_task(10)
+
+        @listener
+        def on_work_done(self, value):
+            """Listener for work done signal"""
+
+            nonlocal result
+            result = value
+
+        async def heavy_task(self, data):
+            """Heavy task"""
+
+            await asyncio.sleep(2)  # Simulate heavy computation
+            self.work_done.emit(data * 2)
+
+    worker = BackgroundWorker()
+    worker.start()
+
+    # Wait for work to complete
+    await asyncio.sleep(2.5)  # Slightly longer than heavy_task sleep
+
+    worker.stop()
+
+    # Verify the computation result
+    assert result == 20, f"Expected result to be 20, but got {result}"
+    # Verify worker stopped properly
+    assert (
+        not worker._nx_thread.is_alive()
+    ), "Worker thread should not be alive after stop"
 
 
 @pytest.mark.asyncio
 async def test_worker_lifecycle(worker):
     """Test the worker lifecycle"""
 
-    logger.info("Starting test_worker_lifecycle")
     initial_value = "test"
 
-    logger.info("Checking initial state")
     assert worker._nx_thread is None
     assert worker._nx_loop is None
     assert not worker.run_called
 
-    logger.info("Starting worker")
     worker.start(initial_value)
 
-    logger.info("Waiting for worker initialization")
     for i in range(10):
         if worker.run_called:
-            logger.info("Worker run called after %d attempts", i + 1)
             break
-        logger.info("Waiting attempt %d", i + 1)
+
         await asyncio.sleep(0.1)
     else:
-        logger.error("Worker failed to run")
         pytest.fail("Worker did not run in time")
 
-    logger.info("Checking worker state")
     assert worker.run_called
     assert worker.data == [initial_value]
 
-    logger.info("Stopping worker")
     worker.stop()
 
 
@@ -89,49 +135,42 @@ class AliasTestWorker:
     def __init__(self):
         self.run_called = False
         self.data = []
-        super().__init__()
+        self.started.connect(self.on_started)
 
-    async def run(self, *args, **kwargs):
-        """Run the worker"""
+    @listener
+    def on_started(self, *args, **kwargs):
+        """Listener for started signal"""
 
         self.run_called = True
         initial_value = args[0] if args else kwargs.get("initial_value", None)
+
         if initial_value:
             self.data.append(initial_value)
-        await self.start_queue()
 
 
 @pytest.mark.asyncio
 async def test_worker_alias_lifecycle():
     """Test the worker lifecycle using alias decorator"""
 
-    logger.info("Starting test_worker_alias_lifecycle")
     initial_value = "test_alias"
 
     worker = AliasTestWorker()
 
-    logger.info("Checking initial state")
     assert worker._nx_thread is None
     assert worker._nx_loop is None
     assert not worker.run_called
 
-    logger.info("Starting worker")
     worker.start(initial_value)
 
-    logger.info("Waiting for worker initialization")
     for i in range(10):
         if worker.run_called:
-            logger.info("Worker run called after %d attempts", i + 1)
             break
-        logger.info("Waiting attempt %d", i + 1)
+
         await asyncio.sleep(0.1)
     else:
-        logger.error("Worker failed to run")
         pytest.fail("Worker did not run in time")
 
-    logger.info("Checking worker state")
     assert worker.run_called
     assert worker.data == [initial_value]
 
-    logger.info("Stopping worker")
     worker.stop()

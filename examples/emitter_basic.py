@@ -17,7 +17,7 @@ Key Points:
 
 import asyncio
 import time
-from pynnex.core import with_emitters, emitter, listener
+from pynnex import with_emitters, emitter, listener
 from utils import logger_setup
 
 logger_setup("pynnex")
@@ -79,7 +79,7 @@ async def main():
     print("[main] (Notice the 1 second delay in processing)")
 
     while True:
-        line = input("> ")
+        line = input("> (q to quit)")
 
         if line.lower() == "q":
             break

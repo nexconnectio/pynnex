@@ -144,6 +144,7 @@ def setup_logging():
     logging.getLogger("pynnex.listener").setLevel(logging.WARNING)
     logging.getLogger("pynnex.emitter.trace").setLevel(logging.WARNING)
     logging.getLogger("pynnex.listener.trace").setLevel(logging.WARNING)
+    logging.getLogger("pynnex.worker").setLevel(logging.WARNING)
 
     # For debugging
     # root.setLevel(logging.DEBUG)
@@ -154,3 +155,4 @@ def setup_logging():
     # logging.getLogger("pynnex.listener").setLevel(logging.DEBUG)
     # logging.getLogger("pynnex.emitter.trace").setLevel(logging.DEBUG)
     # logging.getLogger("pynnex.listener.trace").setLevel(logging.DEBUG)
+    # logging.getLogger("pynnex.worker").setLevel(logging.DEBUG)

@@ -5,49 +5,107 @@
 """
 Decorator for the worker pattern.
 
-This decorator enhances a class to support a worker pattern, allowing for
-asynchronous task processing in a separate thread. It ensures that the
-class has the required asynchronous `initialize` and `finalize` methods,
-facilitating the management of worker threads and task queues.
+This decorator enhances a class with worker thread functionality, providing:
+- A dedicated thread with its own event loop
+- Thread-safe task queue with pre-loop buffering
+- State machine (CREATED -> STARTING -> STARTED -> STOPPING -> STOPPED)
+- Built-in signals (started, stopped)
 """
 
+# pylint: disable=too-many-instance-attributes
+
 import asyncio
+from collections import deque
+from enum import Enum, auto
+import functools
 import inspect
 import logging
 import threading
-from pynnex.core import nx_emitter, NxEmitterConstants
+from pynnex.core import nx_emitter, NxEmitterConstants, NxEmitterObserver
 
-logger = logging.getLogger(__name__)
+logger_worker = logging.getLogger("pynnex.worker")
 
 
-class _WorkerConstants:
+def log_worker_operation(func):
+    """
+    Decorator for logging worker operations.
+
+    Logs the start and completion/failure of worker operations at DEBUG level.
+    Thread-safe and handles both sync and async functions.
+    """
+
+    @functools.wraps(func)
+    def wrapper(self, *args, **kwargs):
+        if logger_worker.isEnabledFor(logging.DEBUG):
+            logger_worker.debug("[Worker:%s] Starting %s", id(self), func.__name__)
+
+        try:
+            result = func(self, *args, **kwargs)
+
+            if logger_worker.isEnabledFor(logging.DEBUG):
+                logger_worker.debug("[Worker:%s] Completed %s", id(self), func.__name__)
+
+            return result
+        except Exception as e:
+            logger_worker.exception(
+                "[Worker:%s] Failed %s: %s", id(self), func.__name__, e
+            )
+            raise
+
+    return wrapper
+
+
+class NxWorkerConstants:
     """Constants for the worker pattern."""
 
-    RUN_CORO = "run_coro"
-    RUN = "run"
+    STOPPED_DONE_FUT = "_nx_stopped_done_fut"
+
+
+class TaskWrapper:
+    """
+    Task wrapper for the worker's task queue.
+
+    Wraps a coroutine with a Future for result handling and
+    provides thread-safe completion notification.
+    """
+
+    def __init__(self, coro):
+        self.coro = coro
+        self.future = asyncio.Future()
+        self.loop = asyncio.get_running_loop()
+
+
+class WorkerState(Enum):
+    """
+    Worker state machine states.
+
+    Flow: CREATED -> STARTING -> STARTED -> STOPPING -> STOPPED
+    """
+
+    CREATED = auto()
+    STARTING = auto()
+    STARTED = auto()
+    STOPPING = auto()
+    STOPPED = auto()
 
 
 def nx_with_worker(cls):
     """
     Class decorator that adds worker thread functionality.
 
-    Parameters
-    ----------
-    cls : class
-        Class to be decorated.
+    Enhances a class with:
+    - Dedicated thread with event loop
+    - Thread-safe task queue
+    - State machine management
+    - Started/stopped signals
+    - Task queueing capability
 
-    Returns
-    -------
-    class
-        Decorated class with worker thread support.
-
-    Notes
-    -----
-    - Creates dedicated thread with event loop
-    - Provides task queue for async operations
-    - Supports emitter/listener communication
-    - Emits started/stopped emitters
-    - Manages worker lifecycle via start/stop methods
+    The decorated class will have:
+    - start(*args, **kwargs): Starts the worker thread
+    - stop(wait=True, timeout=None): Stops the worker thread
+    - queue_task(coro): Queues a task to run in the worker thread
+    - started: Signal emitted when worker starts
+    - stopped: Signal emitted when worker stops
 
     See Also
     --------
@@ -58,128 +116,34 @@ def nx_with_worker(cls):
 
     class WorkerClass(cls):
         """
-        Worker class for the worker pattern.
+        Worker class with pre-loop buffering, thread creation, and main loop coroutine handling.
         """
 
         def __init__(self):
+            self.state = WorkerState.CREATED
             self._nx_loop = None
             self._nx_thread = None
 
-            """
-            _nx_lifecycle_lock:
-                A re-entrant lock that protects worker's lifecycle state (event loop and thread).
-                All operations that access or modify worker's lifecycle state must be
-                performed while holding this lock.
-            """
-            self._nx_lifecycle_lock = threading.RLock()
-            self._nx_stopping = asyncio.Event()
-            self._nx_affinity = object()
-            self._nx_process_queue_task = None
+            self._nx_preloop_buffer = deque()
+            self._nx_lock = threading.RLock()
+
             self._nx_task_queue = None
+            self._nx_main_loop_coro = None
+            self._nx_main_loop_task = None
+            self._nx_stopped_done_fut = None
+
+            self._nx_affinity = object()
             super().__init__()
 
-        @property
-        def event_loop(self) -> asyncio.AbstractEventLoop:
-            """Returns the worker's event loop"""
-
-            if not self._nx_loop:
-                raise RuntimeError("Worker not started")
-
-            return self._nx_loop
-
         @nx_emitter
-        def started(self):
+        def started(self, *args, **kwargs):
             """Emitter emitted when the worker starts"""
 
         @nx_emitter
         def stopped(self):
             """Emitter emitted when the worker stops"""
 
-        async def run(self, *args, **kwargs):
-            """Run the worker."""
-
-            logger.debug("Calling super")
-
-            super_run = getattr(super(), _WorkerConstants.RUN, None)
-            is_super_run_called = False
-
-            if super_run is not None and inspect.iscoroutinefunction(super_run):
-                sig = inspect.signature(super_run)
-
-                try:
-                    logger.debug("sig: %s", sig)
-                    sig.bind(self, *args, **kwargs)
-                    await super_run(*args, **kwargs)
-                    logger.debug("super_run called")
-                    is_super_run_called = True
-                except TypeError:
-                    logger.warning(
-                        "Parent run() signature mismatch. "
-                        "Expected: async def run(*args, **kwargs) but got %s",
-                        sig,
-                    )
-
-            if not is_super_run_called:
-                logger.debug("super_run not called, starting queue")
-                await self.start_queue()
-
-        async def _process_queue(self):
-            """Process the task queue."""
-
-            while not self._nx_stopping.is_set():
-                coro = await self._nx_task_queue.get()
-
-                try:
-                    await coro
-                except Exception as e:
-                    logger.error(
-                        "Task failed: %s",
-                        e,
-                        exc_info=True,
-                    )
-                finally:
-                    self._nx_task_queue.task_done()
-
-        async def start_queue(self):
-            """Start the task queue processing. Returns the queue task."""
-
-            self._nx_process_queue_task = asyncio.create_task(self._process_queue())
-
-        def queue_task(self, coro):
-            """
-            Schedules a coroutine to run on the worker's event loop.
-
-            Parameters
-            ----------
-            coro : coroutine
-                Coroutine to be executed in the worker thread.
-
-            Raises
-            ------
-            RuntimeError
-                If worker is not started.
-            ValueError
-                If argument is not a coroutine object.
-
-            Notes
-            -----
-            - Thread-safe: Can be called from any thread
-            - Tasks are processed in FIFO order
-            - Failed tasks are logged but don't stop queue
-            """
-
-            if not asyncio.iscoroutine(coro):
-                logger.error(
-                    "Task must be a coroutine object: %s",
-                    coro,
-                )
-                return
-
-            with self._nx_lifecycle_lock:
-                loop = self._nx_loop
-
-            loop.call_soon_threadsafe(lambda: self._nx_task_queue.put_nowait(coro))
-
+        @log_worker_operation
         def start(self, *args, **kwargs):
             """
             Starts the worker thread and its event loop.
@@ -199,79 +163,210 @@ def nx_with_worker(cls):
             - Emits 'started' emitter when initialized
             """
 
-            run_coro = kwargs.pop(_WorkerConstants.RUN_CORO, None)
+            def _thread_main():
+                loop = asyncio.new_event_loop()
+                self._nx_loop = loop
+                asyncio.set_event_loop(loop)
 
-            if run_coro is not None and not asyncio.iscoroutine(run_coro):
-                logger.error(
-                    "Must be a coroutine object: %s",
-                    run_coro,
-                )
-                return
+                async def _runner():
+                    """
+                    Prepare event loop:
+                    1) Create _task_queue
+                    2) Flush pre-loop buffer -> _task_queue
+                    3) Register main_loop_coro
+                    4) Register started signal task
+                    5) Set state=STARTED -> loop.run_forever()
+                    """
 
-            def thread_main():
-                """Thread main function."""
+                    async def _flush_preloop_buffer():
+                        """pre-loop buffer -> _task_queue"""
 
-                self._nx_task_queue = asyncio.Queue()
+                        with self._nx_lock:
+                            while self._nx_preloop_buffer:
+                                coro = self._nx_preloop_buffer.popleft()
+                                await self._nx_task_queue.put(coro)
 
-                with self._nx_lifecycle_lock:
-                    self._nx_loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(self._nx_loop)
+                    self._nx_task_queue = asyncio.Queue()
 
-                async def runner():
-                    """Runner function."""
+                    await _flush_preloop_buffer()
 
-                    self.started.emit()
+                    self.started.emit(*args, **kwargs)
 
-                    if run_coro is not None:
-                        run_task = asyncio.create_task(run_coro(*args, **kwargs))
-                    else:
-                        run_task = asyncio.create_task(self.run(*args, **kwargs))
+                    # Register main_loop_coro as the first task
+                    self._nx_main_loop_task = asyncio.create_task(
+                        self._nx_main_loop_coro
+                    )
+
+                    with self._nx_lock:
+                        self.state = WorkerState.STARTED
+
+                # Register necessary initial tasks
+                loop.create_task(_runner())
+
+                try:
+                    loop.run_forever()
+                except KeyboardInterrupt:
+                    pass
+                finally:
+                    loop.close()
+                    with self._nx_lock:
+                        self._nx_loop = None
+                        self.state = WorkerState.STOPPED
+
+            try:
+                with self._nx_lock:
+                    if self.state != WorkerState.CREATED:
+                        raise RuntimeError(
+                            f"Worker can only be started once in CREATED state. Current state={self.state}"
+                        )
+                    self.state = WorkerState.STARTING
+                    self._nx_main_loop_coro = self._default_main_loop()
+                    self._nx_thread = threading.Thread(target=_thread_main, daemon=True)
+                    self._nx_thread.start()
+            except Exception as e:
+                logger_worker.error("Worker start failed: %s", str(e))
+                raise
+
+        @log_worker_operation
+        async def _default_main_loop(self):
+            """
+            Process the task queue: sequentially processes coroutines from self._task_queue
+            Exits when state is STOPPING/STOPPED
+            """
+
+            try:
+                while self.state not in (WorkerState.STOPPING, WorkerState.STOPPED):
+                    task_wrapper = await self._nx_task_queue.get()
+
+                    if task_wrapper is None:
+                        self._nx_task_queue.task_done()
+                        break
+
+                    result = None
+                    cancelled = False
+                    errored = False
 
                     try:
-                        await self._nx_stopping.wait()
+                        result = await task_wrapper.coro
+                    except asyncio.CancelledError:
+                        cancelled = True
 
-                        run_task.cancel()
+                        if task_wrapper.future:
 
-                        try:
-                            await run_task
-                        except asyncio.CancelledError:
-                            pass
+                            def cancel_future(tw=task_wrapper):
+                                """Cancel the future"""
 
-                        if (
-                            self._nx_process_queue_task
-                            and not self._nx_process_queue_task.done()
-                        ):
-                            self._nx_process_queue_task.cancel()
+                                tw.future.cancel()
 
-                            try:
-                                await self._nx_process_queue_task
-                            except asyncio.CancelledError:
-                                logger.debug("_process_queue_task cancelled")
+                            task_wrapper.loop.call_soon_threadsafe(cancel_future)
 
+                        raise  # Exit main loop
+                    except Exception as e:
+                        errored = True
+
+                        logger_worker.exception(
+                            "Error while awaiting the task_wrapper.coro (type=%s): %s",
+                            type(task_wrapper.coro),
+                            e,
+                        )
+
+                        if task_wrapper.future:
+                            task_wrapper.loop.call_soon_threadsafe(
+                                lambda ex=e: task_wrapper.future.set_exception(ex)
+                            )
                     finally:
-                        self.stopped.emit()
-                        # Give the event loop a chance to emit the emitter
-                        await asyncio.sleep(0)
-                        logger.debug("emit stopped")
+                        self._nx_task_queue.task_done()
 
-                with self._nx_lifecycle_lock:
-                    loop = self._nx_loop
+                        if not cancelled and not errored:
+                            if not task_wrapper.future.done():
+                                task_wrapper.loop.call_soon_threadsafe(
+                                    lambda tw=task_wrapper, res=result: tw.future.set_result(
+                                        res
+                                    )
+                                )
 
-                loop.create_task(runner())
-                loop.run_forever()
-                loop.close()
+                # Cancel remaining tasks
+                while not self._nx_task_queue.empty():
+                    tw = self._nx_task_queue.get_nowait()
+                    if tw is not None:
+                        tw.loop.call_soon_threadsafe(
+                            lambda: tw.future.set_exception(asyncio.CancelledError())
+                        )
+                    self._nx_task_queue.task_done()
+            finally:
+                logger_worker.debug("Default main loop finished.")
 
-                with self._nx_lifecycle_lock:
-                    self._nx_loop = None
+        @log_worker_operation
+        def queue_task(self, maybe_coro) -> asyncio.Future:
+            """
+            Schedules a coroutine to run on the worker's event loop.
 
-            # Protect thread creation and assignment under the same lock
-            with self._nx_lifecycle_lock:
-                self._nx_thread = threading.Thread(target=thread_main, daemon=True)
+            Parameters
+            ----------
+            maybe_coro : coroutine function or callable or coroutine
+                Something that results in a coroutine when fully processed.
 
-            with self._nx_lifecycle_lock:
-                self._nx_thread.start()
+            Raises
+            ------
+            RuntimeError
+                If worker is not started.
+            TypeError
+                If argument is neither coroutine, coroutine function, nor callable.
 
-        def stop(self):
+            Notes
+            -----
+            - Thread-safe: Can be called from any thread
+            - Tasks are processed in FIFO order
+            - Failed tasks are logged but don't stop queue
+            """
+
+            # if maybe_coro is a coroutine function -> call it immediately to make it a coroutine object
+            if inspect.iscoroutinefunction(maybe_coro):
+                maybe_coro = maybe_coro()
+
+            # Yet not a coroutine object
+            elif not asyncio.iscoroutine(maybe_coro):
+                # check if maybe_coro is a callable (sync function)
+                if callable(maybe_coro):
+                    original_func = maybe_coro
+
+                    async def wrapper():
+                        val = original_func()  # Perform sync function (or lambda)
+
+                        # If this sync function returns a coroutine object, await it
+                        if asyncio.iscoroutine(val):
+                            return await val
+                        return val
+
+                    # Now maybe_coro is a 'wrapper' coroutine object
+                    maybe_coro = wrapper()
+                else:
+                    raise TypeError(
+                        "Task must be a coroutine, coroutine function, or sync function"
+                    )
+
+            # Now maybe_coro is a coroutine object
+            with self._nx_lock:
+                if self.state == WorkerState.CREATED:
+                    raise RuntimeError("Worker must be started before queueing tasks")
+                if self.state == WorkerState.STARTING:
+                    # Not ready yet -> buffer tasks before loop starts
+                    task_wrapper = TaskWrapper(maybe_coro)
+                    self._nx_preloop_buffer.append(task_wrapper)
+                elif self.state == WorkerState.STARTED:
+                    # Put immediately into _task_queue
+                    task_wrapper = TaskWrapper(maybe_coro)
+                    self._nx_loop.call_soon_threadsafe(
+                        lambda: self._nx_task_queue.put_nowait(task_wrapper)
+                    )
+                else:
+                    # STOPPING or STOPPED
+                    raise RuntimeError(f"Cannot queue task in state={self.state}")
+
+            return task_wrapper.future
+
+        @log_worker_operation
+        def stop(self, wait: bool = True, timeout: float = None) -> bool:
             """
             Gracefully stops the worker thread and its event loop.
 
@@ -280,26 +375,68 @@ def nx_with_worker(cls):
             - Cancels any running tasks including main run() coroutine
             - Waits for task queue to finish processing
             - Emits 'stopped' emitter before final cleanup
-            - Thread is joined with a 2-second timeout
             """
 
-            logger.debug("Starting worker shutdown")
+            if self._nx_thread is None or not self._nx_thread.is_alive():
+                raise RuntimeError("Worker is not started")
 
-            # Acquire lock to safely access _nx_loop and _nx_thread
-            with self._nx_lifecycle_lock:
-                loop = self._nx_loop
-                thread = self._nx_thread
+            if self._nx_loop is None or not self._nx_loop.is_running():
+                raise RuntimeError("Worker is not running")
 
-            if loop and thread and thread.is_alive():
-                logger.debug("Setting stop flag")
-                loop.call_soon_threadsafe(self._nx_stopping.set)
-                logger.debug("Waiting for thread to join")
-                thread.join(timeout=2)
-                logger.debug("Thread joined")
+            with self._nx_lock:
+                if self.state not in (WorkerState.STARTING, WorkerState.STARTED):
+                    raise RuntimeError(
+                        f"Cannot stop worker in state={self.state}. Must be STARTING or STARTED."
+                    )
 
-                with self._nx_lifecycle_lock:
-                    self._nx_loop = None
-                    self._nx_thread = None
+                self.state = WorkerState.STOPPING
+
+                if self._nx_loop and self._nx_loop.is_running():
+
+                    async def _stop_loop():
+                        # Cancel main loop coroutine
+                        self._nx_main_loop_task.cancel()
+
+                        # Wait for cancellation
+                        try:
+                            await self._nx_main_loop_task
+                        except asyncio.CancelledError:
+                            pass
+
+                        self._nx_stopped_done_fut = self._nx_loop.create_future()
+
+                        observer = NxEmitterObserver()
+                        self.stopped.emit(observer=observer)
+
+                        if observer.call_attempts == 0:
+                            self._nx_stopped_done_fut.set_result(True)
+
+                        if wait:
+                            try:
+                                await asyncio.wait_for(
+                                    self._nx_stopped_done_fut, timeout=timeout
+                                )
+                                self._nx_stopped_done_fut = None
+                            except asyncio.TimeoutError:
+                                logger_worker.warning(
+                                    "on_stopped did not finish within 5s. Forcing stop..."
+                                )
+
+                        self._nx_loop.stop()
+
+            self._nx_loop.call_soon_threadsafe(
+                lambda: self._nx_loop.create_task(_stop_loop())
+            )
+
+            if wait and self._nx_thread and self._nx_thread.is_alive():
+                logger_worker.debug("Waiting for thread to finish...")
+
+                self._nx_thread.join(timeout=timeout)
+
+                if self._nx_thread.is_alive():
+                    logger_worker.debug("Thread did not finish within the timeout.")
+                else:
+                    logger_worker.debug("Thread finished.")
 
         def _copy_affinity(self, target):
             """
@@ -322,7 +459,7 @@ def nx_with_worker(cls):
             Internal method used by move_to_thread().
             """
 
-            with self._nx_lifecycle_lock:
+            with self._nx_lock:
                 if not self._nx_thread or not self._nx_loop:
                     raise RuntimeError(
                         "Worker thread not started. "
@@ -344,16 +481,12 @@ def nx_with_worker(cls):
             target._nx_loop = self._nx_loop
             target._nx_affinity = self._nx_affinity
 
-            logger.debug(
-                "Moved %s to worker thread=%s with affinity=%s",
-                target,
-                self._nx_thread,
-                self._nx_affinity,
-            )
-
-        async def wait_for_stop(self):
-            """Wait for the worker to stop."""
-
-            await self._nx_stopping.wait()
+            if logger_worker.isEnabledFor(logging.DEBUG):
+                logger_worker.debug(
+                    "Moved %s to worker thread=%s with affinity=%s",
+                    target,
+                    self._nx_thread,
+                    self._nx_affinity,
+                )
 
     return WorkerClass

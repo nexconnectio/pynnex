@@ -62,7 +62,7 @@ pip install -e .
 
 For development (includes tests and linting tools):
 ```
-pip install -e ".[dev]
+pip install -e ".[dev]"
 ```
 
 ## Quick Hello (Emitters/Listeners)
@@ -71,17 +71,19 @@ Here’s the simplest “Hello, Emitters/Listeners” example. Once installed, r
 
 ```python
 # hello_pynnex.py
+import asyncio
 from pynnex import with_emitters, emitter, listener
+
 
 @with_emitters
 class Greeter:
     @emitter
     def greet(self):
         """Emitter emitted when greeting happens."""
-        pass
 
     def say_hello(self):
         self.greet.emit("Hello from PynneX!")
+
 
 @with_emitters
 class Printer:
@@ -89,14 +91,21 @@ class Printer:
     def on_greet(self, message):
         print(message)
 
-greeter = Greeter()
-printer = Printer()
 
-# Connect the emitter to the listener
-greeter.greet.connect(printer, printer.on_greet)
+async def main():
+    # The following code needs to be inside async main() as it requires a running event loop
+    greeter = Greeter()
+    printer = Printer()
 
-# Fire the emitter
-greeter.say_hello()
+    # Connect the emitter to the listener
+    greeter.greet.connect(printer, printer.on_greet)
+
+    # Fire the emitter
+    greeter.say_hello()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
 **Output:**
@@ -109,45 +118,81 @@ By simply defining `emitter` and `listener`, you can set up intuitive event hand
 If you come from a Qt background or prefer “signal-slot” naming, use:
 
 ```python
+import asyncio
 from pynnex import with_signals, signal, slot
+
 
 @with_signals
 class Greeter:
     @signal
     def greet(self):
-        """Signal that fires a greeting event."""
-        pass
+        """Emitter emitted when greeting happens."""
 
     def say_hello(self):
         self.greet.emit("Hello from PynneX!")
+
 
 @with_signals
 class Printer:
     @slot
     def on_greet(self, message):
-        print(f"Received: {message}")
+        print(message)
+
+
+async def main():
+    # The following code needs to be inside async main() as it requires a running event loop
+    greeter = Greeter()
+    printer = Printer()
+
+    # Connect the emitter to the listener
+    greeter.greet.connect(printer, printer.on_greet)
+
+    # Fire the emitter
+    greeter.say_hello()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
 If you prefer a Pub/Sub style, use:
 
 ```python
-from pynnex import with_signals, signal, slot
+import asyncio
+from pynnex import with_publishers, publisher, subscriber
+
 
 @with_publishers
 class Greeter:
     @publisher
     def greet(self):
-        """Publisher that fires a greeting event."""
-        pass
+        """Emitter emitted when greeting happens."""
 
     def say_hello(self):
-        self.greet.emit("Hello from PynneX!")
+        self.greet.publish("Hello from PynneX!")
 
-@with_subscribers
+
+@with_publishers
 class Printer:
     @subscriber
     def on_greet(self, message):
-        print(f"Received: {message}")
+        print(message)
+
+
+async def main():
+    # The following code needs to be inside async main() as it requires a running event loop
+    greeter = Greeter()
+    printer = Printer()
+
+    # Connect the emitter to the listener
+    greeter.greet.connect(printer, printer.on_greet)
+
+    # Fire the emitter
+    greeter.say_hello()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
 They’re all interchangeable aliases pointing to the same core functionality.
@@ -158,22 +203,25 @@ They’re all interchangeable aliases pointing to the same core functionality.
 
 Below are some brief examples. For more, see the [docs/](https://github.com/nexconnectio/pynnex/blob/main/docs/) directory.
 
-### Basic Counter & Display
+### Asynchronous Listener Example
 ```python
+import asyncio
 from pynnex import with_emitters, emitter, listener
+
 
 @with_emitters
 class Counter:
     def __init__(self):
         self.count = 0
-    
+
     @emitter
     def count_changed(self):
         pass
-    
+
     def increment(self):
         self.count += 1
         self.count_changed.emit(self.count)
+
 
 @with_emitters
 class Display:
@@ -181,34 +229,21 @@ class Display:
     async def on_count_changed(self, value):
         print(f"Count is now: {value}")
 
-# Connect and use
-counter = Counter()
-display = Display()
-counter.count_changed.connect(display, display.on_count_changed)
-counter.increment()  # Will print: "Count is now: 1"
-```
 
-### Asynchronous Listener Example
-```python
-@with_emitters
-class AsyncDisplay:
-    @listener
-    async def on_count_changed(self, value):
-        await asyncio.sleep(1)  # Simulate async operation
-        print(f"Count updated to: {value}")
-
-# Usage in async context
 async def main():
+    # Connect and use
     counter = Counter()
-    display = AsyncDisplay()
-    
+    display = Display()
     counter.count_changed.connect(display, display.on_count_changed)
-    counter.increment()
-    
-    # Wait for async processing
-    await asyncio.sleep(1.1)
+    counter.increment()  # Will print: "Count is now: 1"
 
-asyncio.run(main())
+    # Wait a bit to allow async listener to execute
+    await asyncio.sleep(0.1)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+
 ```
 
 ## Core Concepts
@@ -231,28 +266,39 @@ This mechanism frees you from manually dispatching calls across threads.
 The `@nx_property` decorator provides thread-safe property access with automatic emitter emission:
 
 ```python
+import asyncio
+from pynnex import with_emitters, emitter, nx_property
+
+
 @with_emitters
 class Example:
     def __init__(self):
         super().__init__()
         self._data = None
-    
+
     @emitter
     def updated(self):
         """Emitter emitted when data changes."""
-        pass
-    
+
     @nx_property(notify=updated)
     def data(self):
         """Thread-safe property with change notification."""
         return self._data
-    
+
     @data.setter
     def data(self, value):
         self._data = value
+        print(f"Data set to: {value}")
 
-e = Example()
-e.data = 42  # Thread-safe property set; emits 'updated' emitter on change
+
+async def main():
+    example = Example()
+    example.data = 42  # Thread-safe property set; emits 'updated' emitter on change
+    await asyncio.sleep(0.1)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
 ### Worker Threads
@@ -265,32 +311,58 @@ For background work, PynneX provides a `@nx_with_worker` decorator that:
 
 **Worker Example**
 ```python
-from pynnex import nx_with_worker, emitter
+import asyncio
+from pynnex import with_worker, emitter, listener
+
 
 @with_worker
 class DataProcessor:
+    def __init__(self):
+        self.started.connect(self.on_started)
+        self.processing_done.connect(self.on_processing_done)
+        self.result = None
+
     @emitter
     def processing_done(self):
         """Emitted when processing completes"""
 
-    async def run(self, *args, **kwargs):
-        # The main entry point for the worker thread’s event loop
-        # Wait for tasks or stopping emitter
-        await self.wait_for_stop()
+    @listener
+    async def on_started(self, *args, **kwargs):
+        """Called when worker starts"""
+        print("Worker started, processing data...")
+        await self.process_data(42)
+
+    @listener
+    def on_processing_done(self, result):
+        """Called when processing completes"""
+        self.result = result
+        print(f"Processing complete! Result: {result}")
 
     async def process_data(self, data):
-        # Perform heavy computation in the worker thread
-        result = await heavy_computation(data)
+        """Perform heavy computation in the worker thread"""
+        await asyncio.sleep(2)  # Simulate heavy computation
+        result = data * 2
         self.processing_done.emit(result)
 
-processor = DataProcessor()
-processor.start()
 
-# Queue a task to run in the worker thread:
-processor.queue_task(processor.process_data(some_data))
+async def main():
+    # Create and start the processor
+    processor = DataProcessor()
+    processor.start()
 
-# Stop the worker gracefully
-processor.stop()
+    # Wait for processing to complete
+    await asyncio.sleep(3)
+
+    # Stop the worker gracefully
+    processor.stop()
+
+    # Verify the result
+    assert processor.result == 84, f"Expected 84, got {processor.result}"
+    print("Worker example completed successfully!")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
 ## Documentation and Example
