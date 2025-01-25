@@ -233,7 +233,6 @@ def nx_with_worker(cls):
             Process the task queue: sequentially processes coroutines from self._task_queue
             Exits when state is STOPPING/STOPPED
             """
-
             try:
                 while self.state not in (WorkerState.STOPPING, WorkerState.STOPPED):
                     task_wrapper = await self._nx_task_queue.get()
@@ -243,57 +242,61 @@ def nx_with_worker(cls):
                         break
 
                     result = None
-                    cancelled = False
                     errored = False
 
                     try:
                         result = await task_wrapper.coro
-                    except asyncio.CancelledError:
-                        cancelled = True
 
+                        if not task_wrapper.future.done():
+                            task_wrapper.loop.call_soon_threadsafe(
+                                lambda tw=task_wrapper, res=result: tw.future.set_result(
+                                    res
+                                )
+                            )
+
+                    except asyncio.CancelledError:
+                        # In case of cancellation during task execution, cancel the corresponding future
                         if task_wrapper.future:
 
                             def cancel_future(tw=task_wrapper):
-                                """Cancel the future"""
-
                                 tw.future.cancel()
 
                             task_wrapper.loop.call_soon_threadsafe(cancel_future)
 
-                        raise  # Exit main loop
+                        # Re-raise to cancel the main loop
+                        raise
+
                     except Exception as e:
                         errored = True
-
                         logger_worker.exception(
                             "Error while awaiting the task_wrapper.coro (type=%s): %s",
                             type(task_wrapper.coro),
                             e,
                         )
 
+                        # In case of exception, set the future.set_exception
                         if task_wrapper.future:
                             task_wrapper.loop.call_soon_threadsafe(
                                 lambda ex=e: task_wrapper.future.set_exception(ex)
                             )
+
                     finally:
                         self._nx_task_queue.task_done()
 
-                        if not cancelled and not errored:
-                            if not task_wrapper.future.done():
-                                task_wrapper.loop.call_soon_threadsafe(
-                                    lambda tw=task_wrapper, res=result: tw.future.set_result(
-                                        res
-                                    )
-                                )
+            except asyncio.CancelledError:
+                logger_worker.debug("Main loop got CancelledError, stopping...")
+                raise
 
-                # Cancel remaining tasks
+            finally:
+                # Cancel any remaining task_wrapper in the queue after the loop finishes
                 while not self._nx_task_queue.empty():
                     tw = self._nx_task_queue.get_nowait()
-                    if tw is not None:
+                    if tw is not None and tw.future and not tw.future.done():
                         tw.loop.call_soon_threadsafe(
                             lambda: tw.future.set_exception(asyncio.CancelledError())
                         )
                     self._nx_task_queue.task_done()
-            finally:
+
                 logger_worker.debug("Default main loop finished.")
 
         @log_worker_operation
