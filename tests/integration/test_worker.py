@@ -13,6 +13,7 @@ import asyncio
 import logging
 import pytest
 from pynnex import with_worker, listener, emitter
+from pynnex.contrib.patterns.worker.decorators import WorkerState
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +25,12 @@ async def worker():
     w = TestWorker()
     yield w
 
-    if w._nx_thread is not None and w._nx_thread.is_alive():
+    if (
+        w._nx_thread is not None
+        and w._nx_thread.is_alive()
+        and w._nx_loop is not None
+        and w._nx_loop.is_running()
+    ):
         w.stop()
 
 
@@ -174,3 +180,157 @@ async def test_worker_alias_lifecycle():
     assert worker.data == [initial_value]
 
     worker.stop()
+
+
+@pytest.mark.asyncio
+async def test_not_started(worker):
+    """
+    Test the worker not started state
+    """
+    with pytest.raises(RuntimeError):
+        worker.queue_task(asyncio.sleep(0.1))
+
+
+@pytest.mark.asyncio
+async def test_start_stop_immediate(worker):
+    """
+    Test the worker start() and stop() immediately
+    """
+    worker.start()
+
+    with pytest.raises(RuntimeError):
+        worker.stop()
+
+
+@pytest.mark.asyncio
+async def test_simple_tasks(worker):
+    """
+    Test the worker with simple tasks
+    """
+
+    worker.start()
+
+    async def task1():
+        await asyncio.sleep(0.1)
+        return "task1_done"
+
+    async def task2():
+        await asyncio.sleep(0.2)
+        return "task2_done"
+
+    f1 = worker.queue_task(task1())
+    f2 = worker.queue_task(task2())
+    r1, r2 = await asyncio.gather(f1, f2)
+    assert r1 == "task1_done"
+    assert r2 == "task2_done"
+
+    worker.stop()
+    assert worker.state == WorkerState.STOPPED
+
+
+@pytest.mark.asyncio
+async def test_stop_before_tasks_finish(worker):
+    """
+    Test the worker with long task and stop() immediately
+    """
+
+    worker.start()
+
+    async def long_task():
+        await asyncio.sleep(5)
+        return "long_done"
+
+    f = worker.queue_task(long_task())
+    with pytest.raises(RuntimeError):
+        worker.stop()
+
+
+@pytest.mark.asyncio
+async def test_queue_after_stop(worker):
+    """
+    Test the worker queue_task() after stop()
+    """
+
+    worker.start()
+
+    await asyncio.sleep(1)
+
+    with pytest.raises(RuntimeError):
+        worker.stop()
+        worker.queue_task(asyncio.sleep(0.1))
+
+
+#
+
+
+@pytest.mark.asyncio
+async def test_multiple_start(worker):
+    """
+    Test the worker multiple start()
+    """
+
+    worker.start()
+
+    # Call start() while state is STARTING -> STARTED
+    with pytest.raises(RuntimeError):
+        worker.start()
+
+
+@pytest.mark.asyncio
+async def test_multiple_stop(worker):
+    """
+    Test if stop() is ignored when called multiple times
+    """
+
+    worker.start()
+    await asyncio.sleep(0.1)
+    with pytest.raises(RuntimeError):
+        worker.stop()
+        worker.stop()
+
+
+@pytest.mark.asyncio
+async def test_task_exception(worker):
+    """
+    Test if the task exception is set to the future
+    """
+
+    worker.start()
+
+    async def error_task():
+        raise ValueError("Something bad happened")
+
+    f = worker.queue_task(error_task())
+    with pytest.raises(ValueError) as exc:
+        await f
+
+    assert "Something bad happened" in str(exc.value)
+
+    worker.stop()
+
+
+@pytest.mark.asyncio
+async def test_task_cancellation(worker):
+    """
+    Test if the task is cancelled when worker is stopped while the task is running
+    """
+
+    worker.start()
+
+    async def long_task():
+        logger.debug("[Worker] long_task() #1")
+        await asyncio.sleep(5)
+        logger.debug("[Worker] long_task() #2")
+
+    f = worker.queue_task(long_task())
+    # 0.1초 뒤에 stop
+    await asyncio.sleep(0.1)
+    worker.stop()
+
+    logger.debug("[Worker] test_task_cancellation() #1")
+    try:
+        await f
+    except asyncio.CancelledError:
+        logger.debug("[Worker] test_task_cancellation() #2")
+    assert f.cancelled()
+    logger.debug("[Worker] test_task_cancellation() #3")

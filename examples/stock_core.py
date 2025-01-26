@@ -137,7 +137,7 @@ class StockService:
 
         logger.info("[StockService][on_started] started")
         self._running = True
-        self._update_task = asyncio.create_task(self.update_prices())
+        self.queue_task(self.update_prices())
 
     async def on_stopped(self):
         """
@@ -148,14 +148,6 @@ class StockService:
 
         logger.info("[StockService][on_stopped] stopped")
         self._running = False
-
-        if hasattr(self, "_update_task"):
-            self._update_task.cancel()
-
-            try:
-                await self._update_task
-            except asyncio.CancelledError:
-                pass
 
     async def update_prices(self):
         """
