@@ -235,6 +235,7 @@ def nx_with_worker(cls):
             Process the task queue: sequentially processes coroutines from self._task_queue
             Exits when state is STOPPING/STOPPED
             """
+
             try:
                 while self.state not in (WorkerState.STOPPING, WorkerState.STOPPED):
                     task_wrapper = await self._nx_task_queue.get()
