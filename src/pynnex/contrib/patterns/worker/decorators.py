@@ -163,7 +163,7 @@ def nx_with_worker(cls):
             - Emits 'started' emitter when initialized
             """
 
-            def _thread_main():
+            def _worker_thread_main():
                 loop = asyncio.new_event_loop()
                 self._nx_loop = loop
                 asyncio.set_event_loop(loop)
@@ -221,7 +221,9 @@ def nx_with_worker(cls):
                         )
                     self.state = WorkerState.STARTING
                     self._nx_main_loop_coro = self._default_main_loop()
-                    self._nx_thread = threading.Thread(target=_thread_main, daemon=True)
+                    self._nx_thread = threading.Thread(
+                        target=_worker_thread_main, daemon=True
+                    )
                     self._nx_thread.start()
             except Exception as e:
                 logger_worker.error("Worker start failed: %s", str(e))
@@ -233,6 +235,7 @@ def nx_with_worker(cls):
             Process the task queue: sequentially processes coroutines from self._task_queue
             Exits when state is STOPPING/STOPPED
             """
+
             try:
                 while self.state not in (WorkerState.STOPPING, WorkerState.STOPPED):
                     task_wrapper = await self._nx_task_queue.get()
@@ -242,7 +245,6 @@ def nx_with_worker(cls):
                         break
 
                     result = None
-                    errored = False
 
                     try:
                         result = await task_wrapper.coro
@@ -267,7 +269,6 @@ def nx_with_worker(cls):
                         raise
 
                     except Exception as e:
-                        errored = True
                         logger_worker.exception(
                             "Error while awaiting the task_wrapper.coro (type=%s): %s",
                             type(task_wrapper.coro),
@@ -291,6 +292,7 @@ def nx_with_worker(cls):
                 # Cancel any remaining task_wrapper in the queue after the loop finishes
                 while not self._nx_task_queue.empty():
                     tw = self._nx_task_queue.get_nowait()
+
                     if tw is not None and tw.future and not tw.future.done():
                         tw.loop.call_soon_threadsafe(
                             lambda: tw.future.set_exception(asyncio.CancelledError())

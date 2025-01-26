@@ -63,32 +63,32 @@ class DataWorker:
     async def on_started(self, *args, **kwargs):
         """Called when worker starts."""
 
-        logger.info("[DataWorker][on_started] Starting")
+        print(f"[DataWorker][on_started] thread: {threading.current_thread().name}")
         self._running = True
-        self._update_task = asyncio.create_task(self.update_loop())
+        self._update_task = self.queue_task(self.process_data())
 
     @listener
     async def on_stopped(self):
         """Called when worker stops."""
 
-        logger.info("[DataWorker][on_stopped] Stopping")
         self._running = False
-        if self._update_task:
-            self._update_task.cancel()
-            try:
-                await self._update_task
-            except asyncio.CancelledError:
-                pass
+        print(f"[DataWorker][on_stopped] thread: {threading.current_thread().name}")
 
-    async def update_loop(self):
-        """Periodically emits a counter value."""
-
+    async def process_data(self):
         count = 0
+
         while self._running:
-            logger.info("[DataWorker] Processing data %d", count)
+            print(
+                f"[DataWorker][process_data] data {count} thread: {threading.current_thread().name}"
+            )
+
             self.data_processed.emit(count)
             count += 1
             await asyncio.sleep(1)
+
+        print(
+            f"[DataWorker][process_data] END thread: {threading.current_thread().name}"
+        )
 
 
 @with_emitters
@@ -116,14 +116,12 @@ class DataDisplay:
         Logs the received value and simulates a brief processing delay.
         """
 
-        current_thread = threading.current_thread()
-        logger.info(
-            "[DataDisplay] Received value %d in thread: %s", value, current_thread.name
+        print(
+            f"[DataDisplay][on_data_processed] START in thread: {threading.current_thread().name}"
         )
         self.last_value = value
-        # Add a small delay to check the result
-        time.sleep(0.1)
-        logger.info("[DataDisplay] Processed value %d", value)
+        time.sleep(0.1)  # simulate heavy processing
+        print(f"[DataDisplay][on_data_processed] END value {value}")
 
 
 async def main():
