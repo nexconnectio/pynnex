@@ -119,7 +119,9 @@ def nx_with_worker(cls):
         Worker class with pre-loop buffering, thread creation, and main loop coroutine handling.
         """
 
-        def __init__(self):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+
             self.state = WorkerState.CREATED
             self._nx_loop = None
             self._nx_thread = None
@@ -132,8 +134,7 @@ def nx_with_worker(cls):
             self._nx_main_loop_task = None
             self._nx_stopped_done_fut = None
 
-            self._nx_affinity = object()
-            super().__init__()
+            self._nx_affinity = object()            
 
         @nx_emitter
         def started(self, *args, **kwargs):
@@ -382,6 +383,8 @@ def nx_with_worker(cls):
             - Emits 'stopped' emitter before final cleanup
             """
 
+            logger_worker.debug("Stopping worker...")
+
             if self._nx_thread is None or not self._nx_thread.is_alive():
                 raise RuntimeError("Worker is not started")
 
@@ -403,31 +406,41 @@ def nx_with_worker(cls):
                         self._nx_main_loop_task.cancel()
 
                         # Wait for cancellation
+                        logger_worker.debug("Waiting for cancellation...")
                         try:
                             await self._nx_main_loop_task
                         except asyncio.CancelledError:
                             pass
-
+                        logger_worker.debug("Cancellation received.")
                         self._nx_stopped_done_fut = self._nx_loop.create_future()
 
                         observer = NxEmitterObserver()
+
+                        logger_worker.debug("Emitting stopped signal...")
                         self.stopped.emit(observer=observer)
+                        logger_worker.debug("Stopped signal emitted.")
 
                         if observer.call_attempts == 0:
+                            logger_worker.debug("Setting stopped signal result...")
                             self._nx_stopped_done_fut.set_result(True)
+                            logger_worker.debug("Stopped signal result set.")
 
                         if wait:
                             try:
+                                logger_worker.debug("Waiting for stopped signal...")
                                 await asyncio.wait_for(
                                     self._nx_stopped_done_fut, timeout=timeout
                                 )
+                                logger_worker.debug("Stopped signal received.")
                                 self._nx_stopped_done_fut = None
                             except asyncio.TimeoutError:
                                 logger_worker.warning(
                                     "on_stopped did not finish within 5s. Forcing stop..."
                                 )
 
+                        logger_worker.debug("Stopping loop...")
                         self._nx_loop.stop()
+                        logger_worker.debug("Loop stopped.")
 
             self._nx_loop.call_soon_threadsafe(
                 lambda: self._nx_loop.create_task(_stop_loop())

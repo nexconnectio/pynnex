@@ -56,3 +56,49 @@ Trace loggers provide additional information such as:
 - Method binding and weak reference status
 
 Note: By default, logging levels are determined by your application's logging configuration.
+
+### Using dictConfig
+For more advanced configuration, you can use Python's `logging.config.dictConfig`:
+
+```python
+import logging.config
+
+config = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "default": {
+            "format": "%(asctime)s - %(name)s - [%(filename)s:%(funcName)s] - %(levelname)s - %(message)s",
+            "datefmt": "%H:%M:%S",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "default",
+            "stream": "ext://sys.stdout",
+        },
+    },
+    "loggers": {
+        "pynnex": {"level": "DEBUG", "handlers": ["console"]},
+        "pynnex.emitter": {"level": "DEBUG", "handlers": ["console"]},
+        "pynnex.emitter.trace": {"level": "DEBUG", "handlers": ["console"]},
+        "pynnex.listener": {"level": "DEBUG", "handlers": ["console"]},
+        "pynnex.listener.trace": {"level": "DEBUG", "handlers": ["console"]},
+        "pynnex.worker": {"level": "DEBUG", "handlers": ["console"]},
+    },
+    "root": {
+        "level": "DEBUG",
+        "handlers": ["console"],
+    },
+}
+
+logging.config.dictConfig(config)
+```
+
+This configuration:
+- Sets up a console handler with timestamp and context information
+- Enables DEBUG level logging for all pynnex loggers
+- Uses a consistent format across all log messages
+
+You can adjust the log levels and add additional handlers (like file handlers) as needed for your application.
