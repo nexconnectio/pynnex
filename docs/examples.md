@@ -23,6 +23,7 @@ PynneX requires **Python 3.10** or higher, plus a running `asyncio` event loop f
   - [stock\_monitor\_console.py (source)](#stock_monitor_consolepy-source)
   - [stock\_monitor\_ui.py (source)](#stock_monitor_uipy-source)
   - [stock\_core.py (source)](#stock_corepy-source)
+  - [fastapi\_socketio\_worker\_simple.py (source)](#fastapi_socketio_worker_simplepy-source)
 
 ---
 
@@ -736,6 +737,59 @@ sequenceDiagram
     Note over VM: UI updates accordingly after emitters
 ```
 This example provides a strong architectural foundation for a real-time monitoring app.
+
+---
+
+## fastapi_socketio_worker_simple.py [(source)](https://github.com/nexconnectio/pynnex/blob/main/examples/fastapi_socketio_worker_simple.py)
+**Purpose**: Demonstrates a minimal FastAPI & SocketIO integration with pynnex worker:
+- Uses `@with_worker` to handle asynchronous berry checking tasks
+- Shows how to integrate FastAPI, SocketIO, and pynnex worker
+- Provides a simple web interface for task submission
+
+**Screenshot:**
+<div align="center">
+  <img src="https://raw.githubusercontent.com/nexconnectio/pynnex/main/docs/images/fastapi_with_worker_simple.png" alt="FastAPI with Worker Simple" width="800"/>
+  <p><em>FastAPI with Worker Simple: Real-time WebSocket communication with worker</em></p>
+</div>
+
+**What it demonstrates**:
+- Setting up a FastAPI application with SocketIO
+- Using pynnex worker for background task processing
+- Real-time updates via WebSocket
+- Basic HTML/JavaScript frontend integration
+
+**Scenario:**
+- User clicks a button to request berry checking
+- Request is processed asynchronously in a worker thread
+- Results are sent back to the browser in real-time
+
+**Sequence:**
+```mermaid
+sequenceDiagram
+    participant B as Browser
+    participant F as FastAPI (Main Thread)
+    participant W as Worker Thread
+    
+    Note over B: User clicks "Check Berry"
+    B->>F: socket.emit("message", {command, index})
+    F->>F: message handler receives data
+    F->>W: queue_task(check_berry())
+    W->>W: Process berry check
+    W->>F: emit "task_done" event
+    F->>B: Send result via WebSocket
+    B->>B: Update UI with result
+```
+
+This example is perfect for learning how to:
+1. Set up a minimal web application with FastAPI & SocketIO
+2. Use pynnex worker for background processing
+3. Handle real-time communication between server and client
+4. Integrate with a simple web frontend
+
+Required packages:
+```bash
+pip install fastapi python-socketio uvicorn
+```
 
 ---
 

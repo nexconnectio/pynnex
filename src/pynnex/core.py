@@ -589,6 +589,25 @@ class NxEmitter:
 
                 logger_listener_trace.debug(trace_msg)
 
+            def _on_task_done(t: asyncio.Task):
+                logger_listener.debug("Task done callback called.")
+
+                from pynnex.contrib.patterns.worker.decorators import (
+                    NxWorkerConstants,
+                )
+
+                # Set the Worker's Future to indicate completion
+                has_stopped_done_fut = hasattr(self.owner, NxWorkerConstants.STOPPED_DONE_FUT)
+                logger_listener.debug("has_stopped_done_fut=%s", has_stopped_done_fut)
+
+                if has_stopped_done_fut:
+                    fut = self.owner._nx_stopped_done_fut
+                    logger_listener.debug("fut=%s", fut)
+                    if fut is not None and not fut.done():
+                        logger_listener.debug("Setting stopped signal result...")
+                        fut.set_result(True)
+                        logger_listener.debug("Stopped signal result set.")
+
             try:
                 if actual_conn_type == NxConnectionType.DIRECT_CONNECTION:
                     if observer:
@@ -625,6 +644,8 @@ class NxEmitter:
                             result,
                             type(result),
                         )
+
+                    _on_task_done(result)
                 else:
                     # Handle QUEUED CONNECTION
                     if observer:
@@ -686,17 +707,6 @@ class NxEmitter:
                         is_coro_listener=conn.is_coro_listener,
                         listener_to_call=listener_to_call,
                     ):
-                        def _on_task_done(t: asyncio.Task):
-                            from pynnex.contrib.patterns.worker.decorators import (
-                                NxWorkerConstants,
-                            )
-
-                            # Set the Worker's Future to indicate completion
-                            if hasattr(self.owner, NxWorkerConstants.STOPPED_DONE_FUT):
-                                fut = self.owner._nx_stopped_done_fut
-                                if fut is not None and not fut.done():
-                                    fut.set_result(True)
-
                         if is_coro_listener:
                             returned = asyncio.create_task(
                                 listener_to_call(*args, **kwargs)

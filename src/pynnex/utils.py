@@ -6,7 +6,6 @@ Utility functions for PynneX
 
 import logging
 
-
 def nx_log_and_raise_error(
     logger: logging.Logger, exception_class, message, known_test_exception=False
 ):

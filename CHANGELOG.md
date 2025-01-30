@@ -6,6 +6,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.4] - 2025-01-28
+
+### Added
+- New FastAPI & SocketIO minimal example
+  - Demonstrates pynnex worker integration with web frameworks
+  - Shows real-time WebSocket communication
+  - Includes simple web frontend
+
+### Changed
+- Enhanced logging configuration
+  - Added dictConfig support
+  - Improved logging setup documentation
+- Fixed worker stop signal handling
+
 ## [1.1.3] - 2025-01-26
 
 ### Changed

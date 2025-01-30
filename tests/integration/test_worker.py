@@ -323,7 +323,6 @@ async def test_task_cancellation(worker):
         logger.debug("[Worker] long_task() #2")
 
     f = worker.queue_task(long_task())
-    # 0.1초 뒤에 stop
     await asyncio.sleep(0.1)
     worker.stop()
 
