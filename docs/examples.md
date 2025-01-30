@@ -746,6 +746,12 @@ This example provides a strong architectural foundation for a real-time monitori
 - Shows how to integrate FastAPI, SocketIO, and pynnex worker
 - Provides a simple web interface for task submission
 
+**Screenshot:**
+<div align="center">
+  <img src="https://raw.githubusercontent.com/nexconnectio/pynnex/main/docs/images/fastapi_with_worker_simple.png" alt="FastAPI with Worker Simple" width="800"/>
+  <p><em>FastAPI with Worker Simple: Real-time WebSocket communication with worker</em></p>
+</div>
+
 **What it demonstrates**:
 - Setting up a FastAPI application with SocketIO
 - Using pynnex worker for background task processing
