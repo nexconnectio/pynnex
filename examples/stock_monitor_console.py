@@ -84,13 +84,13 @@ class StockMonitorCLI:
             print("Showing price updates (Press Enter to return to menu):")
             print("\nCurrent Prices:")
 
-            # 전체 종목 가격 출력
+            # Print all stock prices
             for code, data in sorted(self.view_model.current_prices.items()):
                 print(f"{code} ${data.price:.2f} ({data.change:+.2f}%)")
 
             print("\n(Press Enter to return to menu)")
 
-            # 아래는 실시간으로 alert 조건을 만족하는 종목이 있는지 확인
+            # Check for alerts in real-time
             alerts = []
             for code, data in self.view_model.current_prices.items():
                 if code in self.view_model.alert_settings:
@@ -196,25 +196,28 @@ class StockMonitorCLI:
         main_loop = asyncio.get_running_loop()
         processor_started = asyncio.Future()
 
-        # 로컬 함수: processor가 시작되면 service도 시작
+        # Connect service.start to processor's started emitter
         def on_processor_started():
+            """
+            Slot that is automatically called when the processor starts.
+            """
             logger.debug("[StockMonitorCLI][run] processor started, starting service")
             self.service.start()
 
             def set_processor_started_true():
+                """
+                # Set processor_started future to True in the main loop
+                """
                 processor_started.set_result(True)
 
             main_loop.call_soon_threadsafe(set_processor_started_true)
 
-        # Emitter 연결 (단일 StockPrice 기준)
         self.service.price_updated.connect(
             self.processor, self.processor.on_price_updated
         )
         self.processor.price_processed.connect(
             self.view_model, self.view_model.on_price_processed
         )
-
-        # 기존 `prices_updated` → `price_updated` 로 변경
         self.view_model.price_updated.connect(self, self.on_price_updated)
 
         self.view_model.set_alert.connect(
@@ -233,7 +236,7 @@ class StockMonitorCLI:
         self.processor.started.connect(on_processor_started)
         self.processor.start()
 
-        # processor와 service가 정상 시작될 때까지 대기
+        # Wait until processor is started and service is started
         await processor_started
 
         while self.running:
@@ -242,7 +245,6 @@ class StockMonitorCLI:
                 command = await self.get_line_input()
                 await self.process_command(command)
             else:
-                # showprices 모드에서는 Enter 입력 시 메뉴로 복귀
                 await self.get_line_input("")
                 self.showing_prices = False
 
