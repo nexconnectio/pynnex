@@ -9,7 +9,7 @@
 # pylint: disable=import-outside-toplevel
 
 """
-Implementation of the Emitter class for pynnex.
+Implementation of the Emitter class for PynneX.
 
 Provides emitter-listener communication pattern for event handling, supporting both
 synchronous and asynchronous operations in a thread-safe manner.
@@ -264,7 +264,7 @@ class NxEmitterObserver:
 
 
 class NxEmitter:
-    """Emitter class for pynnex."""
+    """Emitter class for PynneX."""
 
     def __init__(self):
         self.connections = []
@@ -846,7 +846,7 @@ class NxEmitter:
 # property is used for lazy initialization of the emitter.
 # The emitter object is created only when first accessed, and a cached object is returned thereafter.
 class NxEmitterProperty(property):
-    """Emitter property class for pynnex."""
+    """Emitter property class for PynneX."""
 
     def __init__(self, fget, emitter_name):
         super().__init__(fget)

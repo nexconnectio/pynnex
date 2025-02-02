@@ -54,7 +54,7 @@ def setup_logging(
     logger_levels: Optional[Dict[str, Union[str, int]]] = None
 ) -> None:
     """
-    Configure logging for pynnex.
+    Configure logging for PynneX.
 
     Args:
         level: Single log level (DEBUG, INFO, WARNING, ERROR, CRITICAL, or numeric value)
@@ -63,7 +63,7 @@ def setup_logging(
                        Sets the log level for each logger defined here.
 
     Examples:
-        >>> # Use the same log level for all pynnex loggers
+        >>> # Use the same log level for all PynneX loggers
         >>> setup_logging("DEBUG")
 
         >>> # Set different log levels for each logger

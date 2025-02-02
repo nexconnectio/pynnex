@@ -1,8 +1,8 @@
-# src/examples/fastapi_socketio_worker_simple.py
+# src/pynnex/examples/fastapi_socketio_simple.py
 
-"""FastAPI and SocketIO example with pynnex worker.
+"""FastAPI and SocketIO example with PynneX worker.
 
-This example demonstrates how to use pynnex worker with FastAPI and python-socketio
+This example demonstrates how to use PynneX worker with FastAPI and python-socketio
 to handle asynchronous berry checking tasks.
 
 Required packages:
@@ -118,7 +118,7 @@ async def index():
     <html>
     <head><title>FastAPI-SocketIO Minimal Example</title></head>
     <body>
-    <h1>Minimal Example: pynnex Worker with FastAPI & SocketIO</h1>
+    <h1>Minimal Example: PynneX Worker with FastAPI & SocketIO</h1>
     <button onclick="sendMessage()">Check Berry</button>
     <div id="berry-results"></div>
     <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>

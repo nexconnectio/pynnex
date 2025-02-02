@@ -23,7 +23,9 @@ PynneX requires **Python 3.10** or higher, plus a running `asyncio` event loop f
   - [stock\_monitor\_console.py (source)](#stock_monitor_consolepy-source)
   - [stock\_monitor\_ui.py (source)](#stock_monitor_uipy-source)
   - [stock\_core.py (source)](#stock_corepy-source)
-  - [fastapi\_socketio\_worker\_simple.py (source)](#fastapi_socketio_worker_simplepy-source)
+  - [fastapi\_socketio\_simple.py (source)](#fastapi_socketio_simplepy-source)
+  - [fastapi\_socketio\_qr.py (source)](#fastapi_socketio_qrpy-source)
+  - [fastapi\_socketio\_stock\_monitor.py (source)](#fastapi_socketio_stock_monitorpy-source)
 
 ---
 
@@ -740,21 +742,21 @@ This example provides a strong architectural foundation for a real-time monitori
 
 ---
 
-## fastapi_socketio_worker_simple.py [(source)](https://github.com/nexconnectio/pynnex/blob/main/examples/fastapi_socketio_worker_simple.py)
-**Purpose**: Demonstrates a minimal FastAPI & SocketIO integration with pynnex worker:
+## fastapi_socketio_simple.py [(source)](https://github.com/nexconnectio/pynnex/blob/main/examples/fastapi_socketio_simple.py)
+**Purpose**: Demonstrates a minimal FastAPI & SocketIO integration with PynneX worker:
 - Uses `@with_worker` to handle asynchronous berry checking tasks
-- Shows how to integrate FastAPI, SocketIO, and pynnex worker
+- Shows how to integrate FastAPI, SocketIO, and PynneX worker
 - Provides a simple web interface for task submission
 
 **Screenshot:**
 <div align="center">
-  <img src="https://raw.githubusercontent.com/nexconnectio/pynnex/main/docs/images/fastapi_with_worker_simple.png" alt="FastAPI with Worker Simple" width="800"/>
+  <img src="https://raw.githubusercontent.com/nexconnectio/pynnex/main/docs/images/fastapi_socketio_simple.png" alt="FastAPI with Worker Simple" width="800"/>
   <p><em>FastAPI with Worker Simple: Real-time WebSocket communication with worker</em></p>
 </div>
 
 **What it demonstrates**:
 - Setting up a FastAPI application with SocketIO
-- Using pynnex worker for background task processing
+- Using PynneX worker for background task processing
 - Real-time updates via WebSocket
 - Basic HTML/JavaScript frontend integration
 
@@ -782,7 +784,7 @@ sequenceDiagram
 
 This example is perfect for learning how to:
 1. Set up a minimal web application with FastAPI & SocketIO
-2. Use pynnex worker for background processing
+2. Use PynneX worker for background processing
 3. Handle real-time communication between server and client
 4. Integrate with a simple web frontend
 
@@ -790,6 +792,139 @@ Required packages:
 ```bash
 pip install fastapi python-socketio uvicorn
 ```
+
+---
+
+## fastapi_socketio_qr.py [(source)](https://github.com/nexconnectio/pynnex/blob/main/examples/fastapi_socketio_qr.py)
+**Purpose**: Demonstrates QR code generation with FastAPI & SocketIO integration:
+- Uses `@with_worker` to handle asynchronous QR code generation
+- Shows real-time QR code updates via WebSocket
+- Provides a simple web interface for QR code generation
+
+**Screenshot:**
+<div align="center">
+  <img src="https://raw.githubusercontent.com/nexconnectio/pynnex/main/docs/images/fastapi_socketio_qr.png" alt="FastAPI QR Code Generator" width="800"/>
+  <p><em>FastAPI QR Code Generator: Real-time QR code generation with WebSocket communication</em></p>
+</div>
+
+**What it demonstrates**:
+- Setting up a FastAPI application with SocketIO
+- Using PynneX worker for QR code generation
+- Real-time image updates via WebSocket
+- Base64 image encoding/decoding
+- Basic HTML/JavaScript frontend integration
+
+**Scenario:**
+- User clicks a button to request QR code generation
+- Request is processed asynchronously in a worker thread
+- Generated QR code is sent back to the browser in real-time as Base64 image
+
+**Sequence:**
+```mermaid
+sequenceDiagram
+    participant B as Browser
+    participant F as FastAPI (Main Thread)
+    participant W as QRWorker Thread
+    
+    Note over B: User clicks "Generate QR"
+    B->>F: socket.emit("request_qr", payload)
+    F->>F: QRController emits qrRequested
+    F->>W: on_qr_requested(sid, payload)
+    W->>W: Generate QR code
+    W->>W: Convert to Base64
+    W->>F: emit "qr_response" event
+    F->>B: Send QR image via WebSocket
+    B->>B: Display QR code image
+```
+
+This example is perfect for learning how to:
+1. Set up a web application with FastAPI & SocketIO
+2. Use PynneX worker for image generation
+3. Handle real-time image data communication
+4. Integrate with a web frontend using Base64 images
+
+Required packages:
+```bash
+pip install fastapi python-socketio uvicorn qrcode
+```
+
+---
+
+## fastapi_socketio_stock_monitor.py [(source)](https://github.com/nexconnectio/pynnex/blob/main/examples/fastapi_socketio_stock_monitor.py)
+**Purpose**: Demonstrates a full-featured stock monitoring web application:
+- Uses FastAPI & SocketIO for real-time web interface
+- Integrates with stock_core.py for core business logic
+- Shows real-time price updates, candlestick charts, and price alerts
+- Uses ag-Grid for interactive data grid and eCharts for candlestick visualization
+
+**Screenshot:**
+<div align="center">
+  <img src="https://raw.githubusercontent.com/nexconnectio/pynnex/main/docs/images/fastapi_socketio_stock_monitor.png" alt="FastAPI Stock Monitor" width="800"/>
+  <p><em>FastAPI Stock Monitor: Real-time stock monitoring with interactive grid, candlestick chart, and price alerts</em></p>
+</div>
+
+**What it demonstrates**:
+- Setting up a FastAPI application with SocketIO
+- Using pynnex worker for stock data processing
+- Real-time data updates via WebSocket
+- Integration with third-party libraries (ag-Grid, eCharts)
+- Complex UI interactions and state management
+- Price alert system with real-time notifications
+
+**Scenario:**
+- User views real-time stock prices in an interactive grid
+- Selecting a stock displays its candlestick chart
+- User can set price alerts for selected stocks
+- Real-time notifications when price alerts are triggered
+
+**Sequence:**
+```mermaid
+sequenceDiagram
+    participant B as Browser
+    participant F as FastAPI (Main Thread)
+    participant S as StockService (Worker)
+    participant P as StockProcessor (Worker)
+    
+    Note over B: User opens application
+    B->>F: Connect via WebSocket
+    F->>S: Start stock service
+    F->>P: Start stock processor
+
+    loop Price Updates
+        S->>S: Generate price updates
+        S->>P: Process price data
+        P->>F: Emit processed prices
+        F->>B: Send price updates
+        B->>B: Update grid & chart
+    end
+
+    Note over B: User sets price alert
+    B->>F: socket.emit("set_alert", data)
+    F->>P: Register price alert
+    
+    alt Price Alert Triggered
+        P->>F: Alert condition met
+        F->>B: Send alert notification
+        B->>B: Display alert
+    end
+```
+
+This example showcases:
+1. Complex real-time web application architecture
+2. Integration of multiple UI components
+3. Real-time data processing and visualization
+4. Interactive user experience with immediate feedback
+5. Alert system with real-time notifications
+
+Required packages:
+```bash
+pip install fastapi python-socketio uvicorn
+```
+
+Frontend dependencies (included via CDN):
+- ag-Grid Community Edition
+- eCharts
+- Bootstrap 5
 
 ---
 

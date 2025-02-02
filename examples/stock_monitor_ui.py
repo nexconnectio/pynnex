@@ -66,7 +66,7 @@ class StockView(BoxLayout):
         self.control_button = Button(text="Start", size_hint_y=None, height=40)
         self.add_widget(self.control_button)
 
-        # Stock selection (using only AAPL for now, expand as needed)
+        # Stock selection
         self.stock_spinner = Spinner(
             text="AAPL",
             values=("AAPL", "GOOGL", "MSFT", "AMZN", "TSLA"),
@@ -112,19 +112,15 @@ class StockView(BoxLayout):
 
         self.add_widget(Widget(size_hint_y=1))
 
-    def update_prices(self, prices: Dict[str, StockPrice]):
+    def update_price(self, price_data: StockPrice):
         """
-        Update the displayed price information based on the currently selected stock.
-
-        If the spinner's text matches a code in `prices`, update the price label
-        and change label. Also shows a status message indicating successful update.
+        Update the displayed price information if the emitted price_data's symbol
+        matches the currently selected stock.
         """
-
-        if self.stock_spinner.text in prices:
-            price_data = prices[self.stock_spinner.text]
+        if price_data.symbol == self.stock_spinner.text:
             self.price_label.text = f"Price: {price_data.price:.2f}"
             self.change_label.text = f"Change: {price_data.change:+.2f}%"
-            self.status_label.text = "Prices updated"
+            self.status_label.text = "Price updated"
 
     @slot
     def on_alert_added(self, code: str, alert_type: str, price: float):
@@ -133,7 +129,6 @@ class StockView(BoxLayout):
 
         Updates the `alert_label` in the UI to inform the user about the alert.
         """
-
         self.alert_label.text = f"ALERT: {code} {alert_type} {price:.2f}"
 
 
@@ -161,21 +156,20 @@ class AsyncKivyApp(App):
         """
         Build the UI layout, connect emitters, and initialize the main components.
         """
-
         self.view = StockView()
 
         self.service = StockService()
         self.processor = StockProcessor()
         self.viewmodel = StockViewModel()
 
-        # Connect emitters
+        # Connect emitters (single StockPrice rather than dict)
         self.service.price_updated.connect(
             self.processor, self.processor.on_price_updated
         )
         self.processor.price_processed.connect(
             self.viewmodel, self.viewmodel.on_price_processed
         )
-        self.viewmodel.prices_updated.connect(self.view, self.view.update_prices)
+        self.viewmodel.price_updated.connect(self.view, self.view.update_price)
 
         # Alert related emitters
         self.processor.alert_triggered.connect(
@@ -207,7 +201,6 @@ class AsyncKivyApp(App):
         """
         Start or stop the StockService and StockProcessor based on the current button state.
         """
-
         if instance.text == "Start":
             self.service.start()
             self.processor.start()
@@ -225,7 +218,6 @@ class AsyncKivyApp(App):
 
         Reads the lower/upper thresholds from the text fields and emits `set_alert`.
         """
-
         code = self.view.stock_spinner.text
         lower_str = self.view.lower_input.text.strip()
         upper_str = self.view.upper_input.text.strip()
@@ -249,7 +241,10 @@ class AsyncKivyApp(App):
             return
 
         self.viewmodel.set_alert.emit(code, lower, upper)
-        self.view.alert_label.text = f"Alert set for {code}: lower={lower if lower else 'None'} upper={upper if upper else 'None'}"
+        self.view.alert_label.text = (
+            f"Alert set for {code}: lower={lower if lower else 'None'} "
+            f"upper={upper if upper else 'None'}"
+        )
 
     def _remove_alert(self, instance):
         """
@@ -257,7 +252,6 @@ class AsyncKivyApp(App):
 
         Emits `remove_alert` for the currently selected stock code.
         """
-
         code = self.view.stock_spinner.text
 
         if not code:
@@ -273,7 +267,6 @@ class AsyncKivyApp(App):
 
         Runs concurrently with the Kivy event loop in async mode.
         """
-
         try:
             while self.background_task_running:
                 await asyncio.sleep(2)
@@ -286,7 +279,6 @@ class AsyncKivyApp(App):
 
         Returns True to indicate we handle the closing ourselves.
         """
-
         asyncio.create_task(self.cleanup())
         return True
 
@@ -294,17 +286,16 @@ class AsyncKivyApp(App):
         """
         Perform a graceful shutdown by stopping background tasks and stopping the app.
         """
-
         self.background_task_running = False
 
         for task in self.tasks:
             if not task.done():
                 task.cancel()
-
                 try:
                     await task
                 except asyncio.CancelledError:
                     pass
+
         self.stop()
 
     async def async_run(self, async_lib=None):
@@ -316,9 +307,7 @@ class AsyncKivyApp(App):
         async_lib : module or None
             The async library to use (defaults to `asyncio`).
         """
-
         self._async_lib = async_lib or asyncio
-
         return await self._async_lib.gather(
             self._async_lib.create_task(super().async_run(async_lib=async_lib))
         )
@@ -328,9 +317,7 @@ async def main():
     """
     Main entry point for running the Kivy app in an async-friendly manner.
     """
-
     Clock.init_async_lib("asyncio")
-
     app = AsyncKivyApp()
     background_task = asyncio.create_task(app.background_task())
     app.tasks.append(background_task)
@@ -343,7 +330,6 @@ async def main():
         for task in app.tasks:
             if not task.done():
                 task.cancel()
-
                 try:
                     await task
                 except asyncio.CancelledError:

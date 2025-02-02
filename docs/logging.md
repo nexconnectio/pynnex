@@ -98,7 +98,7 @@ logging.config.dictConfig(config)
 
 This configuration:
 - Sets up a console handler with timestamp and context information
-- Enables DEBUG level logging for all pynnex loggers
+- Enables DEBUG level logging for all PynneX loggers
 - Uses a consistent format across all log messages
 
 You can adjust the log levels and add additional handlers (like file handlers) as needed for your application.

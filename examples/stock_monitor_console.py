@@ -37,19 +37,6 @@ class StockMonitorCLI:
       - Set or remove price alerts
       - Start/stop showing price updates
       - Quit the application
-
-    Attributes
-    ----------
-    service : StockService
-        The worker responsible for generating stock prices.
-    processor : StockProcessor
-        The worker responsible for processing prices and handling alerts.
-    view_model : StockViewModel
-        A view-model that stores the latest prices and user alert settings.
-    showing_prices : bool
-        Whether the CLI is currently in "showprices" mode, continuously updating prices.
-    running : bool
-        Whether the CLI loop is active.
     """
 
     def __init__(
@@ -67,112 +54,87 @@ class StockMonitorCLI:
         self.showing_prices = False
 
     def print_menu(self):
-        """Print the menu"""
-
+        """Print the menu."""
         print("\n===== MENU =====")
-        print("stocks            - List available stocks and prices")
-        print("alert <code> <l> <u> - Set price alert")
-        print("remove <code>     - Remove price alert")
-        print("list              - List alert settings")
-        print("showprices        - Start showing price updates (press Enter to stop)")
-        print("quit              - Exit")
+        print("stocks                 - List available stocks and prices")
+        print("alert <code> <l> <u>   - Set price alert")
+        print("remove <code>          - Remove price alert")
+        print("list                   - List alert settings")
+        print("showprices             - Start showing price updates (press Enter to stop)")
+        print("quit                   - Exit")
         print("================\n")
 
     async def get_line_input(self, prompt="Command> "):
         """
         Get a line of user input asynchronously.
-
-        Parameters
-        ----------
-        prompt : str
-            The prompt to display before reading user input.
-
-        Returns
-        -------
-        str
-            The user-inputted line.
         """
-
         return await asyncio.get_event_loop().run_in_executor(
             None, lambda: input(prompt)
         )
 
     @listener
-    def on_prices_updated(self, prices: Dict[str, StockPrice]):
+    def on_price_updated(self, price_data: StockPrice):
         """
-        Respond to updated prices in the view model.
+        Listener that responds to a single updated stock price.
 
-        If `showing_prices` is True, prints the current prices and any triggered alerts
-        to the console without re-displaying the main menu.
+        If `showing_prices` is True, prints the current prices and any triggered
+        alerts to the console without re-displaying the main menu.
         """
-
-        # If we are in showprices mode, display current prices:
         if self.showing_prices:
             print("Showing price updates (Press Enter to return to menu):")
             print("\nCurrent Prices:")
 
+            # Print all stock prices
             for code, data in sorted(self.view_model.current_prices.items()):
                 print(f"{code} ${data.price:.2f} ({data.change:+.2f}%)")
 
             print("\n(Press Enter to return to menu)")
 
+            # Check for alerts in real-time
             alerts = []
-
-            for code, data in prices.items():
+            for code, data in self.view_model.current_prices.items():
                 if code in self.view_model.alert_settings:
                     lower, upper = self.view_model.alert_settings[code]
 
-                    if lower and data.price <= lower:
+                    if lower is not None and data.price <= lower:
                         alerts.append(
                             f"{code} price (${data.price:.2f}) below ${lower:.2f}"
                         )
-
-                    if upper and data.price >= upper:
+                    if upper is not None and data.price >= upper:
                         alerts.append(
                             f"{code} price (${data.price:.2f}) above ${upper:.2f}"
                         )
 
             if alerts:
                 print("\nAlerts:")
-
-                for alert in alerts:
-                    print(alert)
+                for alert_msg in alerts:
+                    print(alert_msg)
 
     async def process_command(self, command: str):
         """
         Process a single user command from the CLI.
-
-        Supported commands:
-          - stocks
-          - alert <code> <lower> <upper>
-          - remove <code>
-          - list
-          - showprices
-          - quit
         """
-
         parts = command.strip().split()
-
         if not parts:
             return
 
-        if parts[0] == "stocks":
+        cmd = parts[0].lower()
+
+        if cmd == "stocks":
             print("\nAvailable Stocks:")
             print(f"{'Code':<6} {'Price':>10} {'Change':>8}  {'Company Name':<30}")
             print("-" * 60)
 
             desc = self.service.descriptions
-
-            print(desc)
-
             for code in desc:
                 if code in self.view_model.current_prices:
                     price_data = self.view_model.current_prices[code]
                     print(
-                        f"{code:<6} ${price_data.price:>9.2f} {price_data.change:>+7.2f}%  {desc[code]:<30}"
+                        f"{code:<6} ${price_data.price:>9.2f} "
+                        f"{price_data.change:>+7.2f}%  {desc[code]:<30}"
                     )
 
-        elif parts[0] == "alert" and len(parts) == 4:
+        elif cmd == "alert" and len(parts) == 4:
             try:
                 code = parts[1].upper()
                 lower = float(parts[2])
@@ -187,14 +149,16 @@ class StockMonitorCLI:
             except ValueError:
                 print("Invalid price values")
 
-        elif parts[0] == "remove" and len(parts) == 2:
+        elif cmd == "remove" and len(parts) == 2:
             code = parts[1].upper()
 
             if code in self.view_model.alert_settings:
                 self.view_model.remove_alert.emit(code)
                 print(f"Alert removed for {code}")
+            else:
+                print(f"No alert found for {code}")
 
-        elif parts[0] == "list":
+        elif cmd == "list":
             if not self.view_model.alert_settings:
                 print("\nNo alerts currently set.")
             else:
@@ -204,13 +168,15 @@ class StockMonitorCLI:
                 for code, (lower, upper) in sorted(
                     self.view_model.alert_settings.items()
                 ):
-                    print(f"{code:<6} ${lower:>9.2f} ${upper:>9.2f}")
+                    l_str = f"${lower:.2f}" if lower is not None else "None"
+                    u_str = f"${upper:.2f}" if upper is not None else "None"
+                    print(f"{code:<6} {l_str:>10} {u_str:>10}")
 
-        elif parts[0] == "showprices":
+        elif cmd == "showprices":
             self.showing_prices = True
             print("Now showing price updates. Press Enter to return to menu.")
 
-        elif parts[0] == "quit":
+        elif cmd == "quit":
             self.running = False
             print("Exiting...")
 
@@ -220,37 +186,28 @@ class StockMonitorCLI:
     async def run(self):
         """
         Main execution loop for the CLI.
-
-        Connects emitters between `service`, `processor`, and `view_model`,
-        then continuously reads user input until the user exits.
         """
-
         logger.debug(
             "[StockMonitorCLI][run] started current loop: %s %s",
             id(asyncio.get_running_loop()),
             asyncio.get_running_loop(),
         )
 
-        # Future for receiving started emitter
         main_loop = asyncio.get_running_loop()
         processor_started = asyncio.Future()
 
         # Connect service.start to processor's started emitter
         def on_processor_started():
-            """Processor started"""
-
+            """
+            Slot that is automatically called when the processor starts.
+            """
             logger.debug("[StockMonitorCLI][run] processor started, starting service")
             self.service.start()
 
-            # Set processor_started future to True in the main loop
             def set_processor_started_true():
-                """Set processor started"""
-
-                logger.debug(
-                    "[StockMonitorCLI][run] set_processor_started_true current loop: %s %s",
-                    id(asyncio.get_running_loop()),
-                    asyncio.get_running_loop(),
-                )
+                """
+                # Set processor_started future to True in the main loop
+                """
                 processor_started.set_result(True)
 
             main_loop.call_soon_threadsafe(set_processor_started_true)
@@ -261,7 +218,8 @@ class StockMonitorCLI:
         self.processor.price_processed.connect(
             self.view_model, self.view_model.on_price_processed
         )
-        self.view_model.prices_updated.connect(self, self.on_prices_updated)
+        self.view_model.price_updated.connect(self, self.on_price_updated)
+
         self.view_model.set_alert.connect(
             self.processor, self.processor.on_set_price_alert
         )
@@ -301,14 +259,11 @@ async def main():
     processor = StockProcessor()
 
     cli = StockMonitorCLI(service, processor, view_model)
-
     await cli.run()
 
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
-    except KeyboardInterrupt:
-        pass
-    except SystemExit:
+    except (KeyboardInterrupt, SystemExit):
         pass
