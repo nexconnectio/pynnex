@@ -38,7 +38,7 @@ class StockPrice:
 
     Attributes
     ----------
-    code : str
+    symbol : str
         The stock ticker symbol (e.g., 'AAPL', 'GOOGL', etc.).
     price : float
         The current price of the stock.
@@ -48,7 +48,7 @@ class StockPrice:
         A UNIX timestamp representing the moment of this price capture.
     """
 
-    code: str
+    symbol: str
     price: float
     change: float
     timestamp: float
@@ -66,9 +66,9 @@ class StockService:
     Attributes
     ----------
     prices : Dict[str, float]
-        A mapping of stock code to current price.
+        A mapping of stock symbol to current price.
     last_prices : Dict[str, float]
-        A mapping of stock code to the previous price (for calculating percentage change).
+        A mapping of stock symbol to the previous price (for calculating percentage change).
     _running : bool
         Indicates whether the price generation loop is active.
     _update_task : asyncio.Task, optional
@@ -118,7 +118,7 @@ class StockService:
         Returns
         -------
         Dict[str, str]
-            A dictionary mapping stock codes to their descriptive names (e.g. "AAPL": "Apple Inc.").
+            A dictionary mapping stock symbols to their descriptive names (e.g. "AAPL": "Apple Inc.").
         """
 
         with self._desc_lock:
@@ -158,15 +158,15 @@ class StockService:
         """
 
         while self._running:
-            for code, price in self.prices.items():
-                self.last_prices[code] = price
+            for symbol, price in self.prices.items():
+                self.last_prices[symbol] = price
                 change_pct = random.uniform(-0.01, 0.01)
-                self.prices[code] *= 1 + change_pct
+                self.prices[symbol] *= 1 + change_pct
 
                 price_data = StockPrice(
-                    code=code,
-                    price=self.prices[code],
-                    change=((self.prices[code] / self.last_prices[code]) - 1) * 100,
+                    symbol=symbol,
+                    price=self.prices[symbol],
+                    change=((self.prices[symbol] / self.last_prices[symbol]) - 1) * 100,
                     timestamp=time.time(),
                 )
 
@@ -198,9 +198,9 @@ class StockViewModel:
     current_prices : Dict[str, StockPrice]
         The latest known stock prices.
     alerts : list[tuple[str, str, float]]
-        A list of triggered alerts in the form (stock_code, alert_type, current_price).
+        A list of triggered alerts in the form (stock_symbol, alert_type, current_price).
     alert_settings : Dict[str, tuple[Optional[float], Optional[float]]]
-        A mapping of stock_code to (lower_alert_threshold, upper_alert_threshold).
+        A mapping of stock_symbol to (lower_alert_threshold, upper_alert_threshold).
     """
 
     def __init__(self):
@@ -209,11 +209,11 @@ class StockViewModel:
         self.alert_settings: Dict[str, tuple[Optional[float], Optional[float]]] = {}
 
     @emitter
-    def prices_updated(self):
+    def price_updated(self):
         """
         Emitter emitted when stock prices are updated.
 
-        Receives a dictionary of the form {stock_code: StockPrice}.
+        Receives a stock price data.
         """
 
     @emitter
@@ -221,7 +221,7 @@ class StockViewModel:
         """
         Emitter emitted when a new alert is added.
 
-        Receives (code, alert_type, current_price).
+        Receives (symbol, alert_type, current_price).
         """
 
     @emitter
@@ -229,7 +229,7 @@ class StockViewModel:
         """
         Emitter emitted when user requests to set an alert.
 
-        Receives (code, lower, upper).
+        Receives (symbol, lower, upper).
         """
 
     @emitter
@@ -237,7 +237,7 @@ class StockViewModel:
         """
         Emitter emitted when user requests to remove an alert.
 
-        Receives (code).
+        Receives (symbol).
         """
 
     @listener
@@ -250,35 +250,35 @@ class StockViewModel:
         """
 
         logger.debug("[StockViewModel][on_price_processed] price_data: %s", price_data)
-        self.current_prices[price_data.code] = price_data
-        self.prices_updated.emit(dict(self.current_prices))
+        self.current_prices[price_data.symbol] = price_data
+        self.price_updated.emit(price_data)
 
     @listener
-    def on_alert_triggered(self, code: str, alert_type: str, price: float):
+    def on_alert_triggered(self, symbol: str, alert_type: str, price: float):
         """
         Receive an alert trigger from StockProcessor.
 
         Appends the alert to `alerts` and emits `alert_added`.
         """
 
-        self.alerts.append((code, alert_type, price))
-        self.alert_added.emit(code, alert_type, price)
+        self.alerts.append((symbol, alert_type, price))
+        self.alert_added.emit(symbol, alert_type, price)
 
     @listener
     def on_alert_settings_changed(
-        self, code: str, lower: Optional[float], upper: Optional[float]
+        self, symbol: str, lower: Optional[float], upper: Optional[float]
     ):
         """
         Receive alert settings change notification from StockProcessor.
 
-        If both lower and upper are None, remove any alert setting for that code.
-        Otherwise, update or create a new alert setting for that code.
+        If both lower and upper are None, remove any alert setting for that symbol.
+        Otherwise, update or create a new alert setting for that symbol.
         """
 
         if lower is None and upper is None:
-            self.alert_settings.pop(code, None)
+            self.alert_settings.pop(symbol, None)
         else:
-            self.alert_settings[code] = (lower, upper)
+            self.alert_settings[symbol] = (lower, upper)
 
 
 @with_worker
@@ -294,7 +294,7 @@ class StockProcessor:
     Attributes
     ----------
     price_alerts : Dict[str, tuple[Optional[float], Optional[float]]]
-        A mapping of stock_code to (lower_alert_threshold, upper_alert_threshold).
+        A mapping of stock_symbol to (lower_alert_threshold, upper_alert_threshold).
 
     Emitters
     -------
@@ -341,8 +341,8 @@ class StockProcessor:
         """Emitter emitted when price alert settings are changed"""
 
     @listener
-    async def on_set_price_alert(
-        self, code: str, lower: Optional[float], upper: Optional[float]
+    def on_set_price_alert(
+        self, symbol: str, lower: Optional[float], upper: Optional[float]
     ):
         """
         Receive a price alert setting request from the main thread or UI.
@@ -350,23 +350,23 @@ class StockProcessor:
         Updates (or creates) a new alert threshold entry, then emits `alert_settings_changed`.
         """
 
-        self.price_alerts[code] = (lower, upper)
-        self.alert_settings_changed.emit(code, lower, upper)
+        self.price_alerts[symbol] = (lower, upper)
+        self.alert_settings_changed.emit(symbol, lower, upper)
 
     @listener
-    async def on_remove_price_alert(self, code: str):
+    def on_remove_price_alert(self, symbol: str):
         """
         Receive a price alert removal request from the main thread or UI.
 
-        Deletes the alert thresholds for a given code, then emits `alert_settings_changed`.
+        Deletes the alert thresholds for a given symbol, then emits `alert_settings_changed`.
         """
 
-        if code in self.price_alerts:
-            del self.price_alerts[code]
-            self.alert_settings_changed.emit(code, None, None)
+        if symbol in self.price_alerts:
+            del self.price_alerts[symbol]
+            self.alert_settings_changed.emit(symbol, None, None)
 
     @listener
-    async def on_price_updated(self, price_data: StockPrice):
+    def on_price_updated(self, price_data: StockPrice):
         """
         Receive stock price updates from the `StockService`.
 
@@ -377,8 +377,7 @@ class StockProcessor:
         logger.debug("[StockProcessor][on_price_updated] price_data: %s", price_data)
 
         try:
-            coro = self.process_price(price_data)
-            self.queue_task(coro)
+            self.queue_task(self.process_price(price_data))
         except Exception as e:
             logger.error("Error in on_price_updated: %s", e, exc_info=True)
 
@@ -390,23 +389,23 @@ class StockProcessor:
         emits `alert_triggered` as needed, then emits `price_processed`.
         """
 
-        logger.debug("[StockProcessor][process_price] price_data: %s", price_data)
+        # logger.debug("[StockProcessor][process_price] price_data: %s", price_data)
 
         try:
-            if price_data.code in self.price_alerts:
+            if price_data.symbol in self.price_alerts:
                 logger.debug(
                     "[process_price] Process price event loop: %s",
                     asyncio.get_running_loop(),
                 )
 
-            if price_data.code in self.price_alerts:
-                lower, upper = self.price_alerts[price_data.code]
+            if price_data.symbol in self.price_alerts:
+                lower, upper = self.price_alerts[price_data.symbol]
 
                 if lower and price_data.price <= lower:
-                    self.alert_triggered.emit(price_data.code, "LOW", price_data.price)
+                    self.alert_triggered.emit(price_data.symbol, "LOW", price_data.price)
 
                 if upper and price_data.price >= upper:
-                    self.alert_triggered.emit(price_data.code, "HIGH", price_data.price)
+                    self.alert_triggered.emit(price_data.symbol, "HIGH", price_data.price)
 
             self.price_processed.emit(price_data)
         except Exception as e:

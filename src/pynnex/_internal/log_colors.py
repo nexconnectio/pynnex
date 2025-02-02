@@ -1,7 +1,7 @@
 # src/pynnex/_internal/log_colors.py
 
 """
-Log colors for pynnex.
+Log colors for PynneX.
 """
 
 RED = "\033[91m"
