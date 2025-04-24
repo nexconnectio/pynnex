@@ -188,9 +188,6 @@ def nx_with_worker(cls):
                                 await self._nx_task_queue.put(coro)
 
                     self._nx_task_queue = asyncio.Queue()
-
-                    await _flush_preloop_buffer()
-
                     self.started.emit(*args, **kwargs)
 
                     # Register main_loop_coro as the first task
@@ -200,6 +197,7 @@ def nx_with_worker(cls):
 
                     with self._nx_lock:
                         self.state = WorkerState.STARTED
+                        await _flush_preloop_buffer()
 
                 # Register necessary initial tasks
                 loop.create_task(_runner())
